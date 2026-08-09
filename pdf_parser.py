@@ -4,18 +4,23 @@ import pdfplumber
 import pypdf
 
 def extract_raw_text(pdf_path: str) -> str:
-    """Extract raw text from PDF using PyMuPDF with fallback to pdfplumber / pypdf."""
+    """Extract raw text from PDF using pypdf (pure python) with fallbacks to fitz / pdfplumber."""
     full_text = ""
+    # Try pypdf first (pure Python, 0 native C dependencies, lightweight for Vercel serverless)
     try:
-        doc = fitz.open(pdf_path)
-        pages_text = []
-        for page in doc:
-            t = page.get_text("text")
-            if t:
-                pages_text.append(t)
+        reader = pypdf.PdfReader(pdf_path)
+        pages_text = [p.extract_text() or "" for p in reader.pages]
         full_text = "\n".join(pages_text)
     except Exception as e:
-        print(f"PyMuPDF extraction failed: {e}")
+        print(f"pypdf extraction failed: {e}")
+
+    if not full_text.strip():
+        try:
+            doc = fitz.open(pdf_path)
+            pages_text = [page.get_text("text") or "" for page in doc]
+            full_text = "\n".join(pages_text)
+        except Exception as e:
+            print(f"fitz extraction failed: {e}")
 
     if not full_text.strip():
         try:
@@ -24,14 +29,6 @@ def extract_raw_text(pdf_path: str) -> str:
                 full_text = "\n".join(pages_text)
         except Exception as e:
             print(f"pdfplumber extraction failed: {e}")
-
-    if not full_text.strip():
-        try:
-            reader = pypdf.PdfReader(pdf_path)
-            pages_text = [p.extract_text() or "" for p in reader.pages]
-            full_text = "\n".join(pages_text)
-        except Exception as e:
-            print(f"pypdf extraction failed: {e}")
 
     return full_text
 

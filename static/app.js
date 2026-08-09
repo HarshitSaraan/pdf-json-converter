@@ -114,7 +114,12 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to parse PDF file.');
+        let errDetails = response.statusText;
+        try {
+          const errText = await response.text();
+          if (errText) errDetails = errText;
+        } catch(e) {}
+        throw new Error(`Server Status ${response.status}: ${errDetails}`);
       }
 
       showProgress('Extracting questions & options...', 70);

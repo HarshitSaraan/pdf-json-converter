@@ -20,6 +20,7 @@ app.add_middleware(
 os.makedirs("static", exist_ok=True)
 
 @app.post("/api/parse-pdf")
+@app.post("/parse-pdf")
 async def parse_pdf_endpoint(
     file: UploadFile = File(...),
     topic: str = Form("algebra"),
@@ -42,7 +43,10 @@ async def parse_pdf_endpoint(
         )
     finally:
         if 'tmp_path' in locals() and os.path.exists(tmp_path):
-            os.remove(tmp_path)
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
 
     return {
         "status": "success",
@@ -52,6 +56,7 @@ async def parse_pdf_endpoint(
     }
 
 @app.post("/api/download-json")
+@app.post("/download-json")
 async def download_json_endpoint(request: Request):
     """Returns downloadable JSON file attachment."""
     payload = await request.json()
