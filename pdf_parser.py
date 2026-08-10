@@ -1,7 +1,5 @@
 import re
 import os
-import fitz  # PyMuPDF
-import pdfplumber
 import pypdf
 import docx
 
@@ -37,6 +35,7 @@ def extract_raw_text(file_path: str) -> str:
 
     if not full_text.strip():
         try:
+            import fitz
             doc = fitz.open(file_path)
             pages_text = [page.get_text("text") or "" for page in doc]
             full_text = "\n".join(pages_text)
@@ -45,6 +44,7 @@ def extract_raw_text(file_path: str) -> str:
 
     if not full_text.strip():
         try:
+            import pdfplumber
             with pdfplumber.open(file_path) as pdf:
                 pages_text = [p.extract_text() or "" for p in pdf.pages]
                 full_text = "\n".join(pages_text)
