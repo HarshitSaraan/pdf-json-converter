@@ -17,7 +17,12 @@ def generate_ai_hint(question_text: str, options: list = None, api_key: str = No
     
     opts_str = "\n".join([f"- {o.get('text', '')}" for o in options]) if options else "No options provided"
     
-    prompt = f"""You are an expert academic tutor. Generate a clear, concise, step-by-step hint/explanation for the following multiple choice question. Use LaTeX delimiters ($...$) for any mathematical expressions, formulas, symbols or equations. Keep the explanation direct, educational, and easy to understand.
+    prompt = f"""You are an expert academic tutor. Generate a complete, clear, step-by-step solution and explanation for the following multiple choice question.
+
+Instructions:
+1. Use LaTeX delimiters ($...$) for any mathematical expressions, variables, formulas, or equations (e.g. $2x + 5 = 15$).
+2. Provide a complete explanation from start to finish without cutting off.
+3. State the correct answer clearly at the end.
 
 Question:
 {question_text}
@@ -35,7 +40,7 @@ Explanation:"""
         ],
         "generationConfig": {
             "temperature": 0.3,
-            "maxOutputTokens": 600
+            "maxOutputTokens": 2048
         }
     }
     headers = {"Content-Type": "application/json"}
