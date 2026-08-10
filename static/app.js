@@ -129,12 +129,32 @@ document.addEventListener('DOMContentLoaded', () => {
     ? 'http://127.0.0.1:8000' 
     : '';
 
+  let selectedSubject = 'English';
+
+  const subjectEnglishBtn = document.getElementById('subjectEnglishBtn');
+  const subjectQuantsBtn = document.getElementById('subjectQuantsBtn');
+
+  if (subjectEnglishBtn && subjectQuantsBtn) {
+    subjectEnglishBtn.addEventListener('click', () => {
+      selectedSubject = 'English';
+      subjectEnglishBtn.classList.add('active');
+      subjectQuantsBtn.classList.remove('active');
+    });
+
+    subjectQuantsBtn.addEventListener('click', () => {
+      selectedSubject = 'Quants';
+      subjectQuantsBtn.classList.add('active');
+      subjectEnglishBtn.classList.remove('active');
+    });
+  }
+
   // Parse Document Action
   parsePdfBtn.addEventListener('click', async () => {
     if (!selectedFile) return;
 
     const formData = new FormData();
     formData.append('file', selectedFile);
+    formData.append('subject', selectedSubject);
 
     showProgress('Parsing document contents...', 30);
 
@@ -163,97 +183,52 @@ document.addEventListener('DOMContentLoaded', () => {
         progressContainer.classList.add('hidden');
         if (data.questions && data.questions.length > 0) {
           questionsData = data.questions;
+          // Assign subject to questions
+          questionsData.forEach(q => { if (!q.subject) q.subject = selectedSubject; });
           renderQuestions();
           workspaceSection.classList.remove('hidden');
           workspaceSection.scrollIntoView({ behavior: 'smooth' });
           updateStatusBadge('Parsed Successfully', 'success');
         } else {
-          alert('No questions could be extracted from this PDF. Please check file format.');
+          alert('No questions could be extracted from this document. Please check file format.');
         }
       }, 400);
 
     } catch (err) {
       progressContainer.classList.add('hidden');
-      alert('Error parsing PDF: ' + err.message);
+      alert('Error parsing document: ' + err.message);
     }
   });
 
-  // Load Demo / Sample PDF
-  loadSampleBtn.addEventListener('click', async () => {
-    showProgress('Loading sample PDF dataset...', 50);
-    
-    // Default sample questions dataset
-    questionsData = [
-      {
-        "questionText": "Solve $2x + 5 = 15$",
-        "hint": "Solve $2x + 5 = 15$",
-        "topic": "algebra",
-        "subtopic": "indices",
-        "options": [
-          { "text": "$x=3$", "isCorrect": false },
-          { "text": "$x=5$", "isCorrect": true },
-          { "text": "$x=7$", "isCorrect": false },
-          { "text": "$x=10$", "isCorrect": false }
-        ]
-      },
-      {
-        "questionText": "What is the value of $3^4 \\times 3^2$?",
-        "hint": "Use exponent laws $a^m \\times a^n = a^{m+n}$",
-        "topic": "algebra",
-        "subtopic": "indices",
-        "options": [
-          { "text": "$3^6 = 729$", "isCorrect": true },
-          { "text": "$3^8$", "isCorrect": false },
-          { "text": "$9^6$", "isCorrect": false },
-          { "text": "$81$", "isCorrect": false }
-        ]
-      },
-      {
-        "questionText": "What is the meaning of \"insipid\"?",
-        "hint": "\"Insipid\" describes something that is bland, boring, or lacking any real character.",
-        "topic": "verbal ability",
-        "subtopic": "vocabulary",
-        "options": [
-          { "text": "Rich and flavourful", "isCorrect": false },
-          { "text": "Bold and daring", "isCorrect": false },
-          { "text": "Dull, lacking spirit or flavour", "isCorrect": true },
-          { "text": "Fresh and invigorating", "isCorrect": false }
-        ]
-      }
-    ];
-
-    setTimeout(() => {
-      progressContainer.classList.add('hidden');
-      renderQuestions();
-      workspaceSection.classList.remove('hidden');
-      workspaceSection.scrollIntoView({ behavior: 'smooth' });
-      updateStatusBadge('Sample Loaded', 'success');
-    }, 500);
-  });
-
-  function showProgress(text, percent) {
-    progressContainer.classList.remove('hidden');
-    progressBar.style.width = percent + '%';
-    progressText.textContent = text;
-  }
-
-  function updateStatusBadge(msg, type) {
-    statusBadge.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${msg}`;
-  }
-
+  // Full Taxonomy Definition for English and Quants
   const TAXONOMY = {
-    "VA": ["RC", "Para Completion", "Para Jumbles", "Sentence Correction", "Spellings", "Verbal Analogy"],
-    "Vocabulary": ["Idioms & Phrases", "Antonyms", "Synonyms", "Definition"],
-    "Grammar": ["Active & Passive Voice", "Direct & Indirect Speech", "Error", "Punctuations", "Parts of Speech", "Subject–Verb Agreement"]
+    "English": {
+      "VA": ["RC", "Para Completion", "Para Jumbles", "Sentence Correction", "Spellings", "Verbal Analogy"],
+      "Vocabulary": ["Idioms & Phrases", "Antonyms", "Synonyms", "Definition"],
+      "Grammar": ["Active & Passive Voice", "Direct & Indirect Speech", "Error", "Punctuations", "Parts of Speech", "Subject–Verb Agreement"]
+    },
+    "Quants": {
+      "Arithmetic": ["Averages", "Mixtures & Alligation", "Percentages", "Profit & Loss", "Ratio & Proportion", "SI/CI", "Time & Work", "Time–Speed–Distance"],
+      "Number System": ["Digit properties", "Divisibility rules", "Factorials", "Factorization", "Factors/Multiples", "HCF/LCM", "Integral Solution", "Miscellaneous", "Remainders", "Unit digits"],
+      "Algebra": ["Binomial Theorem", "Matrices & Determinants", "Algebraic identities", "Functions", "Indices & Surds", "Inequalities", "Linear/Quadratic equations", "Maxima & Minima", "Modulus", "Polynomials", "Progressions", "Sets"],
+      "Geometry & Mensuration": ["Area & Perimeter", "Circles", "Coordinate Geometry", "Heights & Distances", "Lines & Angles", "Polygons", "Quadrilaterals", "Solids", "Triangles", "Trigonometry"],
+      "Modern Maths": ["Binomial Theorem", "Logarithm", "Matrices & Determinants", "P & C", "Probability", "Set Theory"]
+    }
   };
 
-  function getSubtopicsForTopic(topic) {
-    if (TAXONOMY[topic]) return TAXONOMY[topic];
-    // Check case insensitive
-    for (let k in TAXONOMY) {
-      if (k.toLowerCase() === (topic || '').toLowerCase()) return TAXONOMY[k];
+  function getTopicsForSubject(subj) {
+    const s = subj || selectedSubject;
+    return TAXONOMY[s] ? Object.keys(TAXONOMY[s]) : Object.keys(TAXONOMY["English"]);
+  }
+
+  function getSubtopicsForTopic(subj, topic) {
+    const s = subj || selectedSubject;
+    const subjData = TAXONOMY[s] || TAXONOMY["English"];
+    if (subjData[topic]) return subjData[topic];
+    for (let k in subjData) {
+      if (k.toLowerCase() === (topic || '').toLowerCase()) return subjData[k];
     }
-    return ["Definition"];
+    return [Object.values(subjData)[0][0]];
   }
 
   // Render Questions Cards
@@ -264,6 +239,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterQuery = searchInput.value.toLowerCase().trim();
 
     questionsData.forEach((q, qIndex) => {
+      if (!q.subject) q.subject = selectedSubject;
+
       // Search filter check
       if (filterQuery) {
         const matchQ = q.questionText.toLowerCase().includes(filterQuery);
@@ -293,38 +270,36 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
       });
 
-      // Build Topic Options
-      const availableTopics = Object.keys(TAXONOMY);
-      let currentTop = availableTopics.find(t => t.toLowerCase() === (q.topic || '').toLowerCase()) || q.topic || "Vocabulary";
+      // Build Topic Options based on Question Subject
+      const availableTopics = getTopicsForSubject(q.subject);
+      let currentTop = availableTopics.find(t => t.toLowerCase() === (q.topic || '').toLowerCase()) || availableTopics[0];
       
       let topicSelectOptionsHtml = '';
       availableTopics.forEach(t => {
         topicSelectOptionsHtml += `<option value="${t}" ${t === currentTop ? 'selected' : ''}>${t}</option>`;
       });
-      if (!availableTopics.includes(currentTop)) {
-        topicSelectOptionsHtml += `<option value="${escapeHtml(currentTop)}" selected>${escapeHtml(currentTop)}</option>`;
-      }
 
-      // Build Subtopic Options
-      const subtopicsList = getSubtopicsForTopic(currentTop);
-      let currentSub = subtopicsList.find(s => s.toLowerCase() === (q.subtopic || '').toLowerCase()) || q.subtopic || subtopicsList[0];
+      // Build Subtopic Options based on Topic
+      const subtopicsList = getSubtopicsForTopic(q.subject, currentTop);
+      let currentSub = subtopicsList.find(s => s.toLowerCase() === (q.subtopic || '').toLowerCase()) || subtopicsList[0];
 
       let subtopicSelectOptionsHtml = '';
       subtopicsList.forEach(s => {
         subtopicSelectOptionsHtml += `<option value="${s}" ${s === currentSub ? 'selected' : ''}>${s}</option>`;
       });
-      if (!subtopicsList.includes(currentSub)) {
-        subtopicSelectOptionsHtml += `<option value="${escapeHtml(currentSub)}" selected>${escapeHtml(currentSub)}</option>`;
-      }
 
       card.innerHTML = `
         <div class="card-header">
           <span class="question-index"><i class="fa-solid fa-circle-question"></i> Question ${qIndex + 1}</span>
           <div class="card-meta-inputs">
-            <select class="meta-select q-topic-select" data-qindex="${qIndex}">
+            <select class="meta-select q-subject-select" data-qindex="${qIndex}" title="Subject">
+              <option value="English" ${q.subject === 'English' ? 'selected' : ''}>English</option>
+              <option value="Quants" ${q.subject === 'Quants' ? 'selected' : ''}>Quants</option>
+            </select>
+            <select class="meta-select q-topic-select" data-qindex="${qIndex}" title="Topic">
               ${topicSelectOptionsHtml}
             </select>
-            <select class="meta-select q-subtopic-select" data-qindex="${qIndex}">
+            <select class="meta-select q-subtopic-select" data-qindex="${qIndex}" title="Subtopic">
               ${subtopicSelectOptionsHtml}
             </select>
             <button class="btn btn-icon text-danger delete-q-btn" data-qindex="${qIndex}" title="Delete Question">
@@ -396,6 +371,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function attachCardEventListeners() {
+    // Subject Select Change
+    document.querySelectorAll('.q-subject-select').forEach(el => {
+      el.addEventListener('change', (e) => {
+        const qIndex = parseInt(e.target.dataset.qindex);
+        const newSubj = e.target.value;
+        questionsData[qIndex].subject = newSubj;
+        const availableTops = getTopicsForSubject(newSubj);
+        questionsData[qIndex].topic = availableTops[0];
+        const subList = getSubtopicsForTopic(newSubj, availableTops[0]);
+        questionsData[qIndex].subtopic = subList[0];
+        renderQuestions();
+      });
+    });
+
     // Question Text change
     document.querySelectorAll('.q-text-input').forEach(el => {
       el.addEventListener('input', (e) => {

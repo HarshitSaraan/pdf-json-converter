@@ -76,9 +76,17 @@
     <!-- Hero / Upload Section -->
     <section class="upload-section">
       <div class="hero-card">
-        <div class="hero-header">
-          <h2><i class="fa-solid fa-cloud-arrow-up"></i> Upload PDF or Word Document</h2>
-          <p>Extract questions, hints, options, and answers directly into custom JSON format with auto-topic classification.</p>
+        <!-- Subject Selection -->
+        <div class="subject-picker-container">
+          <label class="picker-label"><i class="fa-solid fa-graduation-cap"></i> Select Subject for Classification:</label>
+          <div class="subject-pills">
+            <button class="subject-pill active" id="subjectEnglishBtn" data-subject="English">
+              <i class="fa-solid fa-book-open"></i> English (Verbal & Grammar)
+            </button>
+            <button class="subject-pill" id="subjectQuantsBtn" data-subject="Quants">
+              <i class="fa-solid fa-calculator"></i> Quants (Quantitative Aptitude)
+            </button>
+          </div>
         </div>
 
         <!-- File Dropzone -->

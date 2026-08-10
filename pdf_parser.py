@@ -25,7 +25,7 @@ def extract_raw_text(file_path: str) -> str:
             print(f"docx extraction failed: {e}")
 
     if not full_text.strip():
-        # Try pypdf first (pure Python, 0 native C dependencies, lightweight for Vercel serverless)
+        # Try pypdf (pure Python, lightweight for Vercel serverless)
         try:
             reader = pypdf.PdfReader(file_path)
             pages_text = [p.extract_text() or "" for p in reader.pages]
@@ -61,45 +61,91 @@ def format_math_latex(text: str) -> str:
     return text
 
 OFFICIAL_TAXONOMY = {
-    "VA": [
-        "RC",
-        "Para Completion",
-        "Para Jumbles",
-        "Sentence Correction",
-        "Spellings",
-        "Verbal Analogy"
-    ],
-    "Vocabulary": [
-        "Idioms & Phrases",
-        "Antonyms",
-        "Synonyms",
-        "Definition"
-    ],
-    "Grammar": [
-        "Active & Passive Voice",
-        "Direct & Indirect Speech",
-        "Error",
-        "Punctuations",
-        "Parts of Speech",
-        "Subject–Verb Agreement"
-    ],
-    "Quant": [
-        "Algebra & Progressions",
-        "Arithmetic & Percentages",
-        "Geometry & Mensuration",
-        "Number System",
-        "Modern Math & Probability"
-    ]
+    "English": {
+        "VA": [
+            "RC",
+            "Para Completion",
+            "Para Jumbles",
+            "Sentence Correction",
+            "Spellings",
+            "Verbal Analogy"
+        ],
+        "Vocabulary": [
+            "Idioms & Phrases",
+            "Antonyms",
+            "Synonyms",
+            "Definition"
+        ],
+        "Grammar": [
+            "Active & Passive Voice",
+            "Direct & Indirect Speech",
+            "Error",
+            "Punctuations",
+            "Parts of Speech",
+            "Subject–Verb Agreement"
+        ]
+    },
+    "Quants": {
+        "Arithmetic": [
+            "Averages",
+            "Mixtures & Alligation",
+            "Percentages",
+            "Profit & Loss",
+            "Ratio & Proportion",
+            "SI/CI",
+            "Time & Work",
+            "Time–Speed–Distance"
+        ],
+        "Number System": [
+            "Digit properties",
+            "Divisibility rules",
+            "Factorials",
+            "Factorization",
+            "Factors/Multiples",
+            "HCF/LCM",
+            "Integral Solution",
+            "Miscellaneous",
+            "Remainders",
+            "Unit digits"
+        ],
+        "Algebra": [
+            "Binomial Theorem",
+            "Matrices & Determinants",
+            "Algebraic identities",
+            "Functions",
+            "Indices & Surds",
+            "Inequalities",
+            "Linear/Quadratic equations",
+            "Maxima & Minima",
+            "Modulus",
+            "Polynomials",
+            "Progressions",
+            "Sets"
+        ],
+        "Geometry & Mensuration": [
+            "Area & Perimeter",
+            "Circles",
+            "Coordinate Geometry",
+            "Heights & Distances",
+            "Lines & Angles",
+            "Polygons",
+            "Quadrilaterals",
+            "Solids",
+            "Triangles",
+            "Trigonometry"
+        ],
+        "Modern Maths": [
+            "Binomial Theorem",
+            "Logarithm",
+            "Matrices & Determinants",
+            "P & C",
+            "Probability",
+            "Set Theory"
+        ]
+    }
 }
 
-TAXONOMY_PATTERNS = [
-    # Quant
-    ("Quant", "Algebra & Progressions", [r'geometric progression', r'arithmetic progression', r'quadratic', r'polynomial', r'logarithm', r'indices', r'algebra']),
-    ("Quant", "Arithmetic & Percentages", [r'ratio', r'percentage', r'profit and loss', r'simple interest', r'compound interest', r'time and work', r'speed distance', r'average']),
-    ("Quant", "Geometry & Mensuration", [r'circle', r'triangle', r'diameter', r'radius', r'area', r'volume', r'perimeter', r'quadrilateral']),
-    ("Quant", "Number System", [r'prime number', r'divisibility', r'remainder', r'hcf', r'lcm', r'multiples', r'two-digit', r'real numbers']),
-    ("Quant", "Modern Math & Probability", [r'probability', r'combination', r'permutation', r'set theory', r'triangles can be formed']),
-
+ENGLISH_PATTERNS = [
     # Vocabulary
     ("Vocabulary", "Definition", [r'meaning of', r'what does .* mean', r'definition of', r'word .* means', r'describes something']),
     ("Vocabulary", "Idioms & Phrases", [r'idiom', r'phrasal verb', r'meaning/phrasal verb', r'went by the book', r'blow the whistle', r'devil\'s advocate', r'spill the beans', r'phrase', r'proverb']),
@@ -124,32 +170,87 @@ TAXONOMY_PATTERNS = [
     ("VA", "Verbal Analogy", [r'analogy', r'is to', r'analogous', r'verbal analogy'])
 ]
 
-def auto_classify_topic_subtopic(question_text: str, hint_text: str = "", default_topic: str = "Vocabulary", default_subtopic: str = "Definition"):
-    """Classifies a question into the taxonomy automatically."""
+QUANTS_PATTERNS = [
+    # Arithmetic
+    ("Arithmetic", "Averages", [r'average', r'mean', r'weighted average']),
+    ("Arithmetic", "Mixtures & Alligation", [r'mixture', r'alligation', r'solution contains', r'milk and water']),
+    ("Arithmetic", "Percentages", [r'percent', r'percentage', r'increase by', r'decrease by']),
+    ("Arithmetic", "Profit & Loss", [r'cost price', r'selling price', r'profit', r'loss', r'discount', r'marked price']),
+    ("Arithmetic", "Ratio & Proportion", [r'ratio', r'proportion', r'proportional', r'divided in the ratio']),
+    ("Arithmetic", "SI/CI", [r'simple interest', r'compound interest', r'principal', r'rate of interest', r'annually']),
+    ("Arithmetic", "Time & Work", [r'time and work', r'efficiency', r'pipes and cistern', r'days to complete']),
+    ("Arithmetic", "Time–Speed–Distance", [r'speed', r'distance', r'train', r'relative speed', r'boat and stream', r'km/h', r'm/s']),
+
+    # Number System
+    ("Number System", "Digit properties", [r'digit', r'unit digit', r'ten\'s digit', r'two-digit number']),
+    ("Number System", "Divisibility rules", [r'divisible', r'divisibility', r'multiple of']),
+    ("Number System", "Factorials", [r'factorial', r'n!']),
+    ("Number System", "Factorization", [r'factorization', r'prime factor']),
+    ("Number System", "Factors/Multiples", [r'factors', r'number of factors', r'multiples']),
+    ("Number System", "HCF/LCM", [r'hcf', r'lcm', r'greatest common divisor']),
+    ("Number System", "Integral Solution", [r'integral solution', r'integer solutions', r'positive integer']),
+    ("Number System", "Remainders", [r'remainder', r'remains', r'divided by']),
+    ("Number System", "Unit digits", [r'unit digit', r'last digit']),
+    ("Number System", "Miscellaneous", [r'number system', r'real number', r'irrational']),
+
+    # Algebra
+    ("Algebra", "Binomial Theorem", [r'binomial', r'expansion of', r'coefficient of']),
+    ("Algebra", "Matrices & Determinants", [r'matrix', r'matrices', r'determinant', r'eigen']),
+    ("Algebra", "Algebraic identities", [r'identity', r'a\^2 \+ b\^2', r'algebraic']),
+    ("Algebra", "Functions", [r'function', r'f\(x\)', r'domain', r'range of f']),
+    ("Algebra", "Indices & Surds", [r'indices', r'surds', r'exponent', r'power']),
+    ("Algebra", "Inequalities", [r'inequality', r'greater than', r'less than', r'linear inequality']),
+    ("Algebra", "Linear/Quadratic equations", [r'quadratic', r'roots of', r'equation', r'linear equation']),
+    ("Algebra", "Maxima & Minima", [r'maxima', r'minima', r'maximum value', r'minimum value']),
+    ("Algebra", "Modulus", [r'modulus', r'\|x\|', r'absolute value']),
+    ("Algebra", "Polynomials", [r'polynomial', r'degree of polynomial']),
+    ("Algebra", "Progressions", [r'progression', r'arithmetic progression', r'geometric progression', r'ap', r'gp', r'hp']),
+    ("Algebra", "Sets", [r'set', r'subset', r'union', r'intersection']),
+
+    # Geometry & Mensuration
+    ("Geometry & Mensuration", "Area & Perimeter", [r'area', r'perimeter', r'circumference']),
+    ("Geometry & Mensuration", "Circles", [r'circle', r'radius', r'diameter', r'chord', r'tangent']),
+    ("Geometry & Mensuration", "Coordinate Geometry", [r'coordinate', r'slope', r'intercept', r'distance formula', r'locus']),
+    ("Geometry & Mensuration", "Heights & Distances", [r'angle of elevation', r'angle of depression', r'height', r'tower']),
+    ("Geometry & Mensuration", "Lines & Angles", [r'parallel lines', r'transversal', r'angle', r'degree']),
+    ("Geometry & Mensuration", "Polygons", [r'polygon', r'hexagon', r'pentagon', r'diagonals of polygon']),
+    ("Geometry & Mensuration", "Quadrilaterals", [r'rectangle', r'square', r'parallelogram', r'rhombus', r'trapezium', r'quadrilateral']),
+    ("Geometry & Mensuration", "Solids", [r'sphere', r'cylinder', r'cone', r'cube', r'cuboid', r'volume', r'surface area']),
+    ("Geometry & Mensuration", "Triangles", [r'triangle', r'hypotenuse', r'isosceles', r'equilateral', r'pythagoras']),
+    ("Geometry & Mensuration", "Trigonometry", [r'sin', r'cos', r'tan', r'cot', r'sec', r'cosec', r'trigonometric']),
+
+    # Modern Maths
+    ("Modern Maths", "Logarithm", [r'logarithm', r'log', r'log_']),
+    ("Modern Maths", "P & C", [r'permutation', r'combination', r'ncr', r'npr', r'arranged', r'selection']),
+    ("Modern Maths", "Probability", [r'probability', r'random', r'dice', r'coins', r'cards', r'favourable outcomes']),
+    ("Modern Maths", "Set Theory", [r'venn diagram', r'set theory', r'universal set'])
+]
+
+def auto_classify_topic_subtopic(question_text: str, hint_text: str = "", subject: str = "English"):
+    """Classifies a question into the taxonomy automatically based on chosen subject."""
     combined = (question_text + " " + hint_text).lower()
-    for topic, subtopic, patterns in TAXONOMY_PATTERNS:
-        for pat in patterns:
+    
+    is_quants = (subject or "").strip().lower() == "quants"
+    patterns = QUANTS_PATTERNS if is_quants else ENGLISH_PATTERNS
+    
+    for topic, subtopic, pats in patterns:
+        for pat in pats:
             if re.search(pat, combined):
                 return topic, subtopic
-    return default_topic, default_subtopic
+                
+    if is_quants:
+        return "Arithmetic", "Averages"
+    else:
+        return "Vocabulary", "Definition"
 
-def parse_pdf_questions(file_path: str, default_topic: str = "algebra", default_subtopic: str = "indices") -> list:
+def parse_pdf_questions(file_path: str, subject: str = "English", default_topic: str = None, default_subtopic: str = None) -> list:
     """
-    Parses a question paper PDF or DOCX and converts its content into the target JSON structure.
+    Parses a question paper PDF or DOCX and converts its content into target JSON structure.
     """
     text = extract_raw_text(file_path)
     if not text:
         return []
 
-    # Detect header title if present
-    header_match = re.search(r'^(.*?)(?=\n|Q\d+|\d+[\.\)])', text, re.IGNORECASE)
-    detected_topic = default_topic
-    if header_match and len(header_match.group(1).strip()) > 3:
-        clean_header = header_match.group(1).strip()
-        if len(clean_header) < 60:
-            detected_topic = clean_header
-
-    # Regex pattern to match question split markers e.g., Q1:, Q2:, Question 1:, 1), 1., etc.
     q_marker_pattern = r'(?:^|\n)\s*(?:Q\s*\d+[:\.]|Question\s+\d+[:\.]|\b\d+[\.\)])\s*'
     matches = list(re.finditer(q_marker_pattern, text, re.MULTILINE | re.IGNORECASE))
     
@@ -171,7 +272,6 @@ def parse_pdf_questions(file_path: str, default_topic: str = "algebra", default_
         if marker_match:
             body = block[marker_match.end():].strip()
 
-        # Isolate Solution / Explanation / Hint / (Ans: X) sections
         sol_parts = []
         correct_letter = ""
 
@@ -184,7 +284,6 @@ def parse_pdf_questions(file_path: str, default_topic: str = "algebra", default_
             sol_parts.append(f"Correct Answer: {ans_val}")
             body = body[:ans_inline_match.start()].strip() + "\n" + body[ans_inline_match.end():].strip()
         
-        # Extract Explanation / Solution / Hint / Reason from document
         explanation_parts = []
         
         exp_match = re.search(r'(?:Explanation|Solution|Sol|Hint|Reason|Rationale):\s*(.*?)(?=(?:Why the other options are wrong:|Correct Answer:|Answer:|Key:|$))', body, re.DOTALL | re.IGNORECASE)
@@ -253,7 +352,6 @@ def parse_pdf_questions(file_path: str, default_topic: str = "algebra", default_
                 if letter == correct_letter:
                     opt["isCorrect"] = True
 
-        # If explanations are not there, hint should be empty ""
         if explanation_parts:
             hint = "\n\n".join(explanation_parts)
         else:
@@ -263,7 +361,7 @@ def parse_pdf_questions(file_path: str, default_topic: str = "algebra", default_
         hint = format_math_latex(hint)
 
         if question_text:
-            auto_top, auto_sub = auto_classify_topic_subtopic(question_text, hint, default_topic, default_subtopic)
+            auto_top, auto_sub = auto_classify_topic_subtopic(question_text, hint, subject=subject)
             parsed_questions.append({
                 "questionText": question_text,
                 "hint": hint,

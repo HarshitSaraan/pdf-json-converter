@@ -49,6 +49,7 @@ async def generate_hint_endpoint(request: Request):
 @app.post("/parse-document")
 async def parse_document_endpoint(
     file: UploadFile = File(...),
+    subject: str = Form("English"),
     topic: str = Form(None),
     subtopic: str = Form(None)
 ):
@@ -68,8 +69,9 @@ async def parse_document_endpoint(
 
         questions = parse_pdf_questions(
             file_path=tmp_path,
-            default_topic=topic.strip() if topic else "Vocabulary",
-            default_subtopic=subtopic.strip() if subtopic else "Definition"
+            subject=subject,
+            default_topic=topic.strip() if topic else None,
+            default_subtopic=subtopic.strip() if subtopic else None
         )
     finally:
         if 'tmp_path' in locals() and os.path.exists(tmp_path):
@@ -81,6 +83,7 @@ async def parse_document_endpoint(
     return {
         "status": "success",
         "filename": file.filename,
+        "subject": subject,
         "count": len(questions),
         "questions": questions
     }
