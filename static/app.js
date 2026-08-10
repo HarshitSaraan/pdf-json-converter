@@ -347,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Hint
               </button>
             </div>
-            <textarea class="q-hint-input" rows="3" data-qindex="${qIndex}">${escapeHtml(q.hint)}</textarea>
+            <textarea class="q-hint-input" rows="5" data-qindex="${qIndex}">${escapeHtml(q.hint)}</textarea>
           </div>
 
           <div class="options-editor">

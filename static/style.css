@@ -852,6 +852,34 @@ input[type="text"]:focus, textarea:focus {
   100% { transform: rotate(360deg); }
 }
 
+/* Hint Box Styling */
+.q-hint-input {
+  min-height: 140px;
+  resize: vertical;
+  line-height: 1.65;
+  font-family: inherit;
+  font-size: 0.92rem;
+}
+
+@media (max-width: 768px) {
+  .q-hint-input {
+    min-height: 180px;
+    font-size: 0.95rem;
+    padding: 0.85rem;
+  }
+
+  .hint-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .ai-gen-btn {
+    font-size: 0.8rem;
+    padding: 0.35rem 0.75rem;
+  }
+}
+
 /* Utilities */
 .hidden {
   display: none !important;
