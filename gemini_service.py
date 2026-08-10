@@ -4,7 +4,7 @@ import json
 
 def generate_ai_hint(question_text: str, options: list = None, api_key: str = None) -> str:
     """
-    Generates a clear, step-by-step hint/explanation for a multiple-choice question
+    Generates a complete, step-by-step hint/explanation for a multiple-choice question
     using the Google Gemini API with dynamic model discovery.
     """
     key = api_key if api_key and api_key.strip() else os.environ.get("GEMINI_API_KEY", "")
@@ -21,8 +21,8 @@ def generate_ai_hint(question_text: str, options: list = None, api_key: str = No
 
 Instructions:
 1. Use LaTeX delimiters ($...$) for any mathematical expressions, variables, formulas, or equations (e.g. $2x + 5 = 15$).
-2. Provide a complete explanation from start to finish without cutting off.
-3. State the correct answer clearly at the end.
+2. Keep the solution direct, structured, and complete. Write out all calculations to the final answer.
+3. State the final correct answer clearly at the end.
 
 Question:
 {question_text}
@@ -30,7 +30,7 @@ Question:
 Options:
 {opts_str}
 
-Explanation:"""
+Solution & Explanation:"""
 
     payload = {
         "contents": [
@@ -39,9 +39,15 @@ Explanation:"""
             }
         ],
         "generationConfig": {
-            "temperature": 0.3,
-            "maxOutputTokens": 2048
-        }
+            "temperature": 0.2,
+            "maxOutputTokens": 4096
+        },
+        "safetySettings": [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+        ]
     }
     headers = {"Content-Type": "application/json"}
 
@@ -94,11 +100,15 @@ Explanation:"""
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model_name}:generateContent?key={key}"
         
         try:
-            res = requests.post(gen_url, json=payload, headers=headers, timeout=20)
+            res = requests.post(gen_url, json=payload, headers=headers, timeout=25)
             if res.status_code == 200:
                 res_data = res.json()
-                text = res_data['candidates'][0]['content']['parts'][0]['text'].strip()
-                return text
+                candidates = res_data.get('candidates', [])
+                if candidates:
+                    parts = candidates[0].get('content', {}).get('parts', [])
+                    text = "\n".join([p.get('text', '') for p in parts if 'text' in p]).strip()
+                    if text:
+                        return text
             
             err_json = {}
             try: err_json = res.json()
