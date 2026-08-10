@@ -222,9 +222,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function getSubtopicsForTopic(subj, topic) {
+    if (arguments.length === 1) {
+      topic = subj;
+      subj = selectedSubject;
+    }
     const s = subj || selectedSubject;
     const subjData = TAXONOMY[s] || TAXONOMY["English"];
-    if (subjData[topic]) return subjData[topic];
+    if (subjData && subjData[topic]) return subjData[topic];
     for (let k in subjData) {
       if (k.toLowerCase() === (topic || '').toLowerCase()) return subjData[k];
     }
@@ -273,6 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Build Topic Options based on Question Subject
       const availableTopics = getTopicsForSubject(q.subject);
       let currentTop = availableTopics.find(t => t.toLowerCase() === (q.topic || '').toLowerCase()) || availableTopics[0];
+      q.topic = currentTop;
       
       let topicSelectOptionsHtml = '';
       availableTopics.forEach(t => {
@@ -282,6 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Build Subtopic Options based on Topic
       const subtopicsList = getSubtopicsForTopic(q.subject, currentTop);
       let currentSub = subtopicsList.find(s => s.toLowerCase() === (q.subtopic || '').toLowerCase()) || subtopicsList[0];
+      q.subtopic = currentSub;
 
       let subtopicSelectOptionsHtml = '';
       subtopicsList.forEach(s => {
@@ -410,8 +416,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const qIndex = parseInt(e.target.dataset.qindex);
         const newTopic = e.target.value;
         questionsData[qIndex].topic = newTopic;
-        const subList = getSubtopicsForTopic(newTopic);
-        questionsData[qIndex].subtopic = subList[0] || "Definition";
+        const subList = getSubtopicsForTopic(questionsData[qIndex].subject, newTopic);
+        questionsData[qIndex].subtopic = subList[0];
         renderQuestions();
       });
     });
