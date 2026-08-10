@@ -184,19 +184,20 @@ def parse_pdf_questions(file_path: str, default_topic: str = "algebra", default_
             sol_parts.append(f"Correct Answer: {ans_val}")
             body = body[:ans_inline_match.start()].strip() + "\n" + body[ans_inline_match.end():].strip()
         
-        # 1. Check for Explanation / Solution / Sol / Hint / Reason
+        # Extract Explanation / Solution / Hint / Reason from document
+        explanation_parts = []
+        
         exp_match = re.search(r'(?:Explanation|Solution|Sol|Hint|Reason|Rationale):\s*(.*?)(?=(?:Why the other options are wrong:|Correct Answer:|Answer:|Key:|$))', body, re.DOTALL | re.IGNORECASE)
         if exp_match:
             exp_text = exp_match.group(1).strip()
             if exp_text and len(exp_text) > 2:
-                sol_parts.append(exp_text)
+                explanation_parts.append(exp_text)
 
-        # 2. Check for "Why the other options are wrong" section
         why_wrong_match = re.search(r'Why the other options are wrong:?\s*(.*?)(?=(?:Q\s*\d+[:\.]|Question\s+\d+[:\.]|\b\d+[\.\)]|$))', body, re.DOTALL | re.IGNORECASE)
         if why_wrong_match:
             why_text = why_wrong_match.group(1).strip()
             if why_text and len(why_text) > 2:
-                sol_parts.append("Why the other options are wrong:\n" + why_text)
+                explanation_parts.append("Why the other options are wrong:\n" + why_text)
 
         clean_body = body
         if why_wrong_match:
@@ -204,14 +205,14 @@ def parse_pdf_questions(file_path: str, default_topic: str = "algebra", default_
         if exp_match:
             clean_body = clean_body[:exp_match.start()].strip()
 
-        # Isolate Correct Answer line if not already caught
+        # Isolate Correct Answer line
         if not correct_letter:
             ans_match = re.search(r'(?:Correct Answer|Answer|Key):\s*([A-D])\)?\s*(.*)', clean_body, re.IGNORECASE)
             if ans_match:
                 correct_letter = ans_match.group(1).upper()
                 ans_extra = ans_match.group(2).strip()
                 if ans_extra:
-                    sol_parts.append(f"Correct Answer: {correct_letter} - {ans_extra}")
+                    explanation_parts.append(ans_extra)
                 clean_body = clean_body[:ans_match.start()].strip()
 
         # Find option start (e.g. A), (A), A., a), etc.)
@@ -252,10 +253,11 @@ def parse_pdf_questions(file_path: str, default_topic: str = "algebra", default_
                 if letter == correct_letter:
                     opt["isCorrect"] = True
 
-        if sol_parts:
-            hint = "\n\n".join(sol_parts)
+        # If explanations are not there, hint should be empty ""
+        if explanation_parts:
+            hint = "\n\n".join(explanation_parts)
         else:
-            hint = question_text
+            hint = ""
 
         question_text = format_math_latex(question_text)
         hint = format_math_latex(hint)
