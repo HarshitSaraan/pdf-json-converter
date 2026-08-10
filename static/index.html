@@ -50,38 +50,28 @@
     <section class="upload-section">
       <div class="hero-card">
         <div class="hero-header">
-          <h2><i class="fa-solid fa-cloud-arrow-up"></i> Upload PDF Question Paper</h2>
-          <p>Extract questions, hints, options, and correct answers directly into your custom JSON structure.</p>
-        </div>
-
-        <div class="config-grid">
-          <div class="form-group">
-            <label for="defaultTopic"><i class="fa-solid fa-folder"></i> Default Topic</label>
-            <input type="text" id="defaultTopic" value="algebra" placeholder="e.g. algebra, verbal ability">
-          </div>
-          <div class="form-group">
-            <label for="defaultSubtopic"><i class="fa-solid fa-tag"></i> Default Subtopic</label>
-            <input type="text" id="defaultSubtopic" value="indices" placeholder="e.g. indices, vocabulary">
-          </div>
+          <h2><i class="fa-solid fa-cloud-arrow-up"></i> Upload PDF or Word Document</h2>
+          <p>Extract questions, hints, options, and answers directly into custom JSON format with auto-topic classification.</p>
         </div>
 
         <!-- File Dropzone -->
         <div class="dropzone" id="dropzone">
-          <input type="file" id="fileInput" accept=".pdf" class="file-input-hidden">
+          <input type="file" id="fileInput" accept=".pdf,.docx,.doc" class="file-input-hidden">
           <div class="dropzone-content">
             <div class="dropzone-icon">
-              <i class="fa-solid fa-file-pdf"></i>
+              <i class="fa-solid fa-file-word" style="color: #2b579a; margin-right: 0.5rem;"></i>
+              <i class="fa-solid fa-file-pdf" style="color: #ef4444;"></i>
             </div>
             <div class="dropzone-text">
-              <span class="primary-text">Drag & drop your PDF file here, or <span class="browse-link">browse</span></span>
-              <span class="secondary-text">Supports PDF format (e.g. Question paper, Mock test papers)</span>
+              <span class="primary-text">Drag & drop your PDF or Word document here, or <span class="browse-link">browse</span></span>
+              <span class="secondary-text">Supports PDF & Word (.docx, .doc) formats</span>
             </div>
           </div>
           <div class="file-preview-card hidden" id="filePreviewCard">
             <div class="file-info">
-              <i class="fa-solid fa-file-pdf pdf-file-icon"></i>
+              <i class="fa-solid fa-file-invoice pdf-file-icon" id="fileTypeIcon"></i>
               <div class="file-details">
-                <span class="file-name" id="fileName">exam_paper.pdf</span>
+                <span class="file-name" id="fileName">exam_paper.docx</span>
                 <span class="file-size" id="fileSize">1.2 MB</span>
               </div>
             </div>
@@ -94,10 +84,10 @@
         <!-- Action Button -->
         <div class="upload-actions">
           <button id="parsePdfBtn" class="btn btn-primary btn-lg" disabled>
-            <i class="fa-solid fa-wand-magic-sparkles"></i> Parse PDF to JSON
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Parse Document to JSON
           </button>
           <button id="loadSampleBtn" class="btn btn-secondary btn-lg">
-            <i class="fa-solid fa-flask"></i> Try Sample PDF
+            <i class="fa-solid fa-flask"></i> Try Sample Document
           </button>
         </div>
 

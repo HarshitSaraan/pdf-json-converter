@@ -62,10 +62,13 @@ document.addEventListener('DOMContentLoaded', () => {
   dropzone.addEventListener('drop', (e) => {
     const dt = e.dataTransfer;
     const files = dt.files;
-    if (files.length > 0 && files[0].type === 'application/pdf') {
-      handleFileSelection(files[0]);
-    } else {
-      alert('Please upload a valid PDF file.');
+    if (files.length > 0) {
+      const ext = files[0].name.split('.').pop().toLowerCase();
+      if (['pdf', 'docx', 'doc'].includes(ext)) {
+        handleFileSelection(files[0]);
+      } else {
+        alert('Please upload a valid PDF or Word document (.docx, .doc).');
+      }
     }
   });
 
@@ -96,19 +99,17 @@ document.addEventListener('DOMContentLoaded', () => {
     ? 'http://127.0.0.1:8000' 
     : '';
 
-  // Parse PDF Action
+  // Parse Document Action
   parsePdfBtn.addEventListener('click', async () => {
     if (!selectedFile) return;
 
     const formData = new FormData();
     formData.append('file', selectedFile);
-    formData.append('topic', defaultTopicInput.value || 'algebra');
-    formData.append('subtopic', defaultSubtopicInput.value || 'indices');
 
-    showProgress('Parsing PDF contents...', 30);
+    showProgress('Parsing document contents...', 30);
 
     try {
-      const response = await fetch(`${API_BASE}/api/parse-pdf`, {
+      const response = await fetch(`${API_BASE}/api/parse-document`, {
         method: 'POST',
         body: formData
       });
@@ -458,8 +459,8 @@ document.addEventListener('DOMContentLoaded', () => {
     questionsData.push({
       questionText: "New Question Text $x = 0$",
       hint: "Hint for new question",
-      topic: defaultTopicInput.value || "algebra",
-      subtopic: defaultSubtopicInput.value || "indices",
+      topic: "Vocabulary",
+      subtopic: "Definition",
       options: [
         { text: "$Option 1$", isCorrect: true },
         { text: "$Option 2$", isCorrect: false },
