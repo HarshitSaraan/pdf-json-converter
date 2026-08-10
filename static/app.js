@@ -148,6 +148,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function showProgress(text, percent) {
+    if (progressContainer) progressContainer.classList.remove('hidden');
+    if (progressBar) progressBar.style.width = percent + '%';
+    if (progressText) progressText.textContent = text;
+  }
+
+  function updateStatusBadge(msg, type) {
+    const statusBadge = document.getElementById('statusBadge');
+    if (statusBadge) {
+      statusBadge.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${msg}`;
+    }
+  }
+
   // Parse Document Action
   parsePdfBtn.addEventListener('click', async () => {
     if (!selectedFile) return;
