@@ -38,8 +38,38 @@ document.addEventListener('DOMContentLoaded', () => {
   const addQuestionBtn = document.getElementById('addQuestionBtn');
   const copyJsonBtn = document.getElementById('copyJsonBtn');
   const downloadJsonBtn = document.getElementById('downloadJsonBtn');
-  const themeToggleBtn = document.getElementById('themeToggleBtn');
-  const statusBadge = document.getElementById('statusBadge');
+  const aiSettingsBtn = document.getElementById('aiSettingsBtn');
+  const aiModalOverlay = document.getElementById('aiModalOverlay');
+  const closeAiModalBtn = document.getElementById('closeAiModalBtn');
+  const cancelAiModalBtn = document.getElementById('cancelAiModalBtn');
+  const saveAiModalBtn = document.getElementById('saveAiModalBtn');
+  const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
+  const autoGenerateAllHintsBtn = document.getElementById('autoGenerateAllHintsBtn');
+
+  // Load stored Gemini API key
+  const savedKey = localStorage.getItem('gemini_api_key') || '';
+  if (geminiApiKeyInput) geminiApiKeyInput.value = savedKey;
+
+  // AI Modal handlers
+  if (aiSettingsBtn) {
+    aiSettingsBtn.addEventListener('click', () => {
+      geminiApiKeyInput.value = localStorage.getItem('gemini_api_key') || '';
+      aiModalOverlay.classList.remove('hidden');
+    });
+  }
+
+  const closeAiModal = () => aiModalOverlay.classList.add('hidden');
+  if (closeAiModalBtn) closeAiModalBtn.addEventListener('click', closeAiModal);
+  if (cancelAiModalBtn) cancelAiModalBtn.addEventListener('click', closeAiModal);
+
+  if (saveAiModalBtn) {
+    saveAiModalBtn.addEventListener('click', () => {
+      const keyVal = geminiApiKeyInput.value.trim();
+      localStorage.setItem('gemini_api_key', keyVal);
+      closeAiModal();
+      alert(keyVal ? 'Google Gemini API Key saved locally!' : 'API Key cleared.');
+    });
+  }
 
   // Drag and drop handlers
   ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -311,7 +341,12 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
 
           <div class="hint-wrapper">
-            <label><i class="fa-solid fa-lightbulb"></i> Hint / Explanation</label>
+            <div class="hint-header">
+              <label><i class="fa-solid fa-lightbulb"></i> Hint / Explanation</label>
+              <button class="ai-gen-btn generate-single-ai-hint-btn" data-qindex="${qIndex}" title="Generate step-by-step explanation using Gemini AI">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Hint
+              </button>
+            </div>
             <textarea class="q-hint-input" rows="3" data-qindex="${qIndex}">${escapeHtml(q.hint)}</textarea>
           </div>
 
@@ -422,6 +457,14 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
+    // Single AI Hint Generation Click
+    document.querySelectorAll('.generate-single-ai-hint-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const qIndex = parseInt(e.currentTarget.dataset.qindex);
+        await generateSingleAiHint(qIndex, e.currentTarget);
+      });
+    });
+
     // Delete Question
     document.querySelectorAll('.delete-q-btn').forEach(el => {
       el.addEventListener('click', (e) => {
@@ -451,6 +494,81 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         renderQuestions();
       });
+    });
+  }
+
+  // Generate Single AI Hint helper
+  async function generateSingleAiHint(qIndex, btnElement) {
+    const q = questionsData[qIndex];
+    if (!q) return;
+
+    const apiKey = localStorage.getItem('gemini_api_key') || '';
+    
+    const origHtml = btnElement ? btnElement.innerHTML : '';
+    if (btnElement) {
+      btnElement.disabled = true;
+      btnElement.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i> Generating...';
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/generate-hint`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionText: q.questionText,
+          options: q.options,
+          apiKey: apiKey
+        })
+      });
+
+      if (!response.ok) {
+        let errStr = response.statusText;
+        try {
+          const errData = await response.json();
+          if (errData && errData.detail) errStr = errData.detail;
+        } catch(e) {}
+        throw new Error(errStr);
+      }
+
+      const resData = await response.json();
+      q.hint = resData.hint;
+      renderQuestions();
+    } catch(err) {
+      alert('AI Generation Failed: ' + err.message);
+      if (btnElement) {
+        btnElement.disabled = false;
+        btnElement.innerHTML = origHtml;
+      }
+    }
+  }
+
+  // Batch Auto-Generate Missing Hints
+  if (autoGenerateAllHintsBtn) {
+    autoGenerateAllHintsBtn.addEventListener('click', async () => {
+      const emptyIndices = [];
+      questionsData.forEach((q, idx) => {
+        if (!q.hint || !q.hint.trim()) emptyIndices.push(idx);
+      });
+
+      if (emptyIndices.length === 0) {
+        alert('All questions already have hints!');
+        return;
+      }
+
+      if (!confirm(`Generate AI hints for ${emptyIndices.length} questions missing hints?`)) return;
+
+      const origText = autoGenerateAllHintsBtn.innerHTML;
+      autoGenerateAllHintsBtn.disabled = true;
+
+      for (let i = 0; i < emptyIndices.length; i++) {
+        const idx = emptyIndices[i];
+        autoGenerateAllHintsBtn.innerHTML = `<i class="fa-solid fa-spinner spin-icon"></i> Generating (${i + 1}/${emptyIndices.length})...`;
+        await generateSingleAiHint(idx, null);
+      }
+
+      autoGenerateAllHintsBtn.disabled = false;
+      autoGenerateAllHintsBtn.innerHTML = origText;
+      alert(`Successfully generated AI hints for ${emptyIndices.length} questions!`);
     });
   }
 

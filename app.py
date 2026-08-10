@@ -5,8 +5,9 @@ from fastapi import FastAPI, UploadFile, File, Form, Response, HTTPException, Re
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pdf_parser import parse_pdf_questions
+from gemini_service import generate_ai_hint
 
-app = FastAPI(title="PDF & DOCX Question JSON Converter", version="2.0.0")
+app = FastAPI(title="PDF & DOCX Question JSON Converter", version="3.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,6 +19,29 @@ app.add_middleware(
 
 # Ensure static folder exists
 os.makedirs("static", exist_ok=True)
+
+@app.post("/api/generate-hint")
+@app.post("/generate-hint")
+async def generate_hint_endpoint(request: Request):
+    """Generates AI hint/explanation using Google Gemini API."""
+    data = await request.json()
+    question_text = data.get("questionText", "")
+    options = data.get("options", [])
+    api_key = data.get("apiKey", "")
+
+    if not question_text:
+        raise HTTPException(status_code=400, detail="questionText is required.")
+
+    try:
+        hint_text = generate_ai_hint(question_text=question_text, options=options, api_key=api_key)
+        return {
+            "status": "success",
+            "hint": hint_text
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
 
 @app.post("/api/parse-pdf")
 @app.post("/parse-pdf")

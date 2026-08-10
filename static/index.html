@@ -36,12 +36,39 @@
         <span class="status-badge" id="statusBadge">
           <i class="fa-solid fa-circle-dot"></i> Ready
         </span>
+        <button id="aiSettingsBtn" class="btn btn-outline btn-sm" title="Configure Google Gemini API Key">
+          <i class="fa-solid fa-key"></i> Gemini Key
+        </button>
         <button id="themeToggleBtn" class="btn btn-icon" title="Toggle Theme">
           <i class="fa-solid fa-moon"></i>
         </button>
       </div>
     </div>
   </header>
+
+  <!-- AI API Key Settings Modal -->
+  <div class="modal-overlay hidden" id="aiModalOverlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-key" style="color: #6366f1;"></i> Google Gemini API Settings</h3>
+        <button class="btn btn-icon" id="closeAiModalBtn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Enter your free <strong>Google Gemini API Key</strong> to generate AI explanations & hints for questions on demand.
+          <br><small>Get your free key at <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #6366f1; text-decoration: underline;">Google AI Studio</a> (0 cost, 1500 req/day free).</small>
+        </p>
+        <div class="form-group" style="margin-top: 1rem;">
+          <label for="geminiApiKeyInput"><i class="fa-solid fa-lock"></i> Gemini API Key</label>
+          <input type="password" id="geminiApiKeyInput" placeholder="AIzaSy..." style="font-family: var(--font-code);">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancelAiModalBtn">Cancel</button>
+        <button class="btn btn-primary" id="saveAiModalBtn"><i class="fa-solid fa-floppy-disk"></i> Save Key</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Main Container -->
   <main class="app-container">
@@ -143,6 +170,9 @@
         <div class="bulk-topic-tools">
           <input type="text" id="bulkTopicInput" placeholder="Set topic for all..." class="sm-input">
           <button class="btn btn-sm btn-outline" id="applyBulkTopicBtn">Apply Topic</button>
+          <button class="btn btn-sm btn-primary" id="autoGenerateAllHintsBtn" title="Generate AI hints for questions that do not have one">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Missing Hints (AI)
+          </button>
         </div>
       </div>
 
