@@ -54,11 +54,45 @@ def extract_raw_text(file_path: str) -> str:
     return full_text
 
 def format_math_latex(text: str) -> str:
-    """Ensure math expressions are properly formatted."""
+    r"""
+    Ensure math expressions and text are properly formatted according to strict rules:
+    1. Inline-safe LaTeX only ($...$), convert \[ ... \] or $$ ... $$ to $...$.
+    2. Don't write Step 1, Step 2... instead just line by line.
+    3. Don't use bold letters (remove ** and __).
+    4. Don't use ### or # headings.
+    """
     if not text:
         return ""
-    text = re.sub(r'[ \t]+', ' ', text).strip()
+    
+    # Remove markdown headings and '###'
+    text = re.sub(r'#+\s*', '', text)
+
+    # Convert display LaTeX \[...\] or $$...$$ to inline $...$
+    text = text.replace(r'\[', '$').replace(r'\]', '$')
+    text = text.replace('$$', '$')
+
+    # Remove newlines inside $...$ to ensure inline-safety (same line)
+    def inline_latex(match):
+        latex_content = match.group(1).strip()
+        latex_content = re.sub(r'\s+', ' ', latex_content)
+        return f"${latex_content}$"
+    text = re.sub(r'\$([^\$\n]+)\$', inline_latex, text)
+
+    # Remove "Step 1", "Step 2", "Step 1:", "Step 2.", "Step 1 -", etc.
+    text = re.sub(r'(?i)\bStep\s*\d+[:\.-]?\s*', '', text)
+
+    # Remove bold syntax (**text** or __text__ or stray ** / __)
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    text = re.sub(r'__(.*?)__', r'\1', text)
+    text = text.replace('**', '').replace('__', '')
+
+    # Clean up whitespace
+    text = re.sub(r'[ \t]+', ' ', text)
+    lines = [line.strip() for line in text.splitlines()]
+    text = "\n".join(lines).strip()
+    text = re.sub(r'\n{3,}', '\n\n', text)
     return text
+
 
 OFFICIAL_TAXONOMY = {
     "English": {

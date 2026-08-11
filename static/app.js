@@ -539,7 +539,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const resData = await response.json();
-      q.hint = resData.hint;
+      q.hint = cleanFormatting(resData.hint);
       renderQuestions();
     } catch(err) {
       alert('AI Generation Failed: ' + err.message);
@@ -667,9 +667,22 @@ document.addEventListener('DOMContentLoaded', () => {
     themeToggleBtn.innerHTML = isLight ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
   });
 
+  function cleanFormatting(str) {
+    if (!str) return '';
+    let cleaned = str.replace(/#+\s*/g, '');
+    cleaned = cleaned.replace(/\\\[/g, '$').replace(/\\\]/g, '$');
+    cleaned = cleaned.replace(/\$\$/g, '$');
+    cleaned = cleaned.replace(/\bStep\s*\d+[:\.-]?\s*/gi, '');
+    cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, '$1');
+    cleaned = cleaned.replace(/__(.*?)__/g, '$1');
+    cleaned = cleaned.replace(/\*\*/g, '').replace(/__/g, '');
+    return cleaned.trim();
+  }
+
   function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
 });
+

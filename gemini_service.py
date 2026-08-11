@@ -1,10 +1,52 @@
 import os
 import requests
 import json
+import re
+
+def clean_text_formatting(text: str) -> str:
+    r"""
+    Cleans text according to exact formatting rules:
+    1. Use inline-safe LaTeX only ($...$), convert \[ ... \] or $$ ... $$ to $...$.
+    2. Don't write step 1, step 2... instead just line by line.
+    3. Don't use bold letters (remove ** and __).
+    4. Don't use ### or # headings.
+    """
+    if not text:
+        return ""
+
+    # Remove markdown headings and '###'
+    text = re.sub(r'#+\s*', '', text)
+
+    # Convert display LaTeX \[...\] or $$...$$ to inline $...$
+    text = text.replace(r'\[', '$').replace(r'\]', '$')
+    text = text.replace('$$', '$')
+
+    # Remove newlines inside $...$ to ensure inline-safety (same line)
+    def inline_latex(match):
+        latex_content = match.group(1).strip()
+        latex_content = re.sub(r'\s+', ' ', latex_content)
+        return f"${latex_content}$"
+    text = re.sub(r'\$([^\$\n]+)\$', inline_latex, text)
+
+    # Remove "Step 1", "Step 2", "Step 1:", "Step 2.", "Step 1 -", etc.
+    text = re.sub(r'(?i)\bStep\s*\d+[:\.-]?\s*', '', text)
+
+    # Remove bold syntax (**text** or __text__ or stray ** / __)
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    text = re.sub(r'__(.*?)__', r'\1', text)
+    text = text.replace('**', '').replace('__', '')
+
+    # Clean up excess spaces / blank lines
+    text = re.sub(r'[ \t]+', ' ', text)
+    lines = [line.strip() for line in text.splitlines()]
+    text = "\n".join(lines).strip()
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    return text
 
 def generate_ai_hint(question_text: str, options: list = None, api_key: str = None) -> str:
     """
-    Generates a complete, step-by-step hint/explanation for a multiple-choice question
+    Generates a complete, line-by-line hint/explanation for a multiple-choice question
     using the Google Gemini API with dynamic model discovery.
     """
     key = api_key if api_key and api_key.strip() else os.environ.get("GEMINI_API_KEY", "")
@@ -17,12 +59,13 @@ def generate_ai_hint(question_text: str, options: list = None, api_key: str = No
     
     opts_str = "\n".join([f"- {o.get('text', '')}" for o in options]) if options else "No options provided"
     
-    prompt = f"""You are an expert academic tutor. Generate a complete, clear, step-by-step solution and explanation for the following multiple choice question.
+    prompt = f"""You are an expert academic tutor. Generate a complete, clear, line-by-line solution and explanation for the following multiple choice question.
 
-Instructions:
-1. Use LaTeX delimiters ($...$) for any mathematical expressions, variables, formulas, or equations (e.g. $2x + 5 = 15$).
-2. Keep the solution direct, structured, and complete. Write out all calculations to the final answer.
-3. State the final correct answer clearly at the end.
+CRITICAL FORMATTING RULES YOU MUST FOLLOW STRICTLY:
+1. Use inline-safe LaTeX ONLY with single dollar signs: $...$ for any mathematical expressions, variables, formulas, or equations (e.g. $2x + 5 = 15$). NEVER use display LaTeX delimiters like \\[ \\] or $$.
+2. Do NOT write "Step 1", "Step 2", "Step 3", etc. Write the solution line by line in clean consecutive normal sentences without step numbers or step titles.
+3. Do NOT use bold letters or bold markdown syntax (do NOT use ** or __ anywhere).
+4. Do NOT use ### or any markdown heading tags anywhere in the output.
 
 Question:
 {question_text}
@@ -108,7 +151,7 @@ Solution & Explanation:"""
                     parts = candidates[0].get('content', {}).get('parts', [])
                     text = "\n".join([p.get('text', '') for p in parts if 'text' in p]).strip()
                     if text:
-                        return text
+                        return clean_text_formatting(text)
             
             err_json = {}
             try: err_json = res.json()
@@ -125,3 +168,4 @@ Solution & Explanation:"""
             last_err = str(e)
 
     raise RuntimeError(f"Could not generate hint: {last_err}")
+
