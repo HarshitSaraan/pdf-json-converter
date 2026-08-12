@@ -477,10 +477,26 @@ def parse_pdf_questions(file_path: str, subject: str = "English", default_topic:
         else:
             hint = ""
 
+        # Extract question number if present in marker
+        q_num_str = str(len(parsed_questions) + 1)
+        if marker_match:
+            digits = re.search(r'\d+', marker_match.group(0))
+            if digits:
+                q_num_str = digits.group(0)
+
+        # Handle passage context propagation for multi-question passage sets
+        if len(question_text) > 120 and ("passage" in question_text.lower() or len(question_text.splitlines()) > 3):
+            last_passage = question_text
+        elif not question_text:
+            if 'last_passage' in locals() and last_passage:
+                question_text = f"{last_passage}\n\nQuestion {q_num_str}"
+            else:
+                question_text = f"Question {q_num_str}"
+
         question_text = format_math_latex(question_text)
         hint = format_math_latex(hint)
 
-        if question_text:
+        if question_text or formatted_options:
             auto_top, auto_sub = auto_classify_topic_subtopic(question_text, hint, subject=subject)
             parsed_questions.append({
                 "questionText": question_text,
