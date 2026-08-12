@@ -211,9 +211,9 @@ def generate_ai_hint(question_text: str, options: list = None, api_key: str = No
     # Select subject-specific prompt template
     subj_lower = (subject or "").lower().strip()
     if "quant" in subj_lower or "math" in subj_lower:
-        prompt = QUANTS_PROMPT_TEMPLATE.format(question_text=question_text, opts_str=opts_str)
+        prompt = QUANTS_PROMPT_TEMPLATE.replace("{question_text}", question_text).replace("{opts_str}", opts_str)
     else:
-        prompt = ENGLISH_PROMPT_TEMPLATE.format(question_text=question_text, opts_str=opts_str)
+        prompt = ENGLISH_PROMPT_TEMPLATE.replace("{question_text}", question_text).replace("{opts_str}", opts_str)
 
     payload = {
         "contents": [
