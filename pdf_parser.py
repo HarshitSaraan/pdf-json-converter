@@ -277,19 +277,100 @@ def auto_classify_topic_subtopic(question_text: str, hint_text: str = "", subjec
     else:
         return "Vocabulary", "Definition"
 
-def parse_pdf_questions(file_path: str, subject: str = "English", default_topic: str = None, default_subtopic: str = None) -> list:
+def parse_with_gemini_fallback(raw_text: str, subject: str = "English", api_key: str = None) -> list:
+    """Uses Google Gemini API to extract questions when regex parsing finds 0 questions."""
+    key = api_key if api_key and api_key.strip() else os.environ.get("GEMINI_API_KEY", "")
+    if not key or not key.strip():
+        return []
+    
+    import requests
+    prompt = f"""You are an expert academic document parser. Extract all multiple choice questions from the given document text into a clean JSON array.
+
+Return ONLY a valid JSON array of objects with this structure:
+[
+  {{
+    "questionText": "Full text of the question",
+    "hint": "Any hint, solution, or explanation provided in text (or empty string)",
+    "topic": "Appropriate topic name",
+    "subtopic": "Appropriate subtopic name",
+    "options": [
+      {{"text": "Option A text", "isCorrect": false}},
+      {{"text": "Option B text", "isCorrect": false}},
+      {{"text": "Option C text", "isCorrect": false}},
+      {{"text": "Option D text", "isCorrect": false}}
+    ]
+  }}
+]
+
+Strict Rules:
+- Extract every question present in the text.
+- Do not add extra conversational text outside the JSON code block.
+
+Subject: {subject}
+
+Document Text:
+{raw_text[:16000]}"""
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}
+    }
+    
+    # Try calling Gemini models
+    models = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"]
+    for m in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={key.strip()}"
+        try:
+            r = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=25)
+            if r.status_code == 200:
+                res_data = r.json()
+                candidates = res_data.get('candidates', [])
+                if candidates:
+                    parts = candidates[0].get('content', {}).get('parts', [])
+                    txt = "\n".join([p.get('text', '') for p in parts if 'text' in p]).strip()
+                    # Clean code block backticks
+                    match = re.search(r'```(?:json)?\s*(\[.*\])\s*```', txt, re.DOTALL)
+                    json_str = match.group(1) if match else txt
+                    parsed = json.loads(json_str)
+                    if isinstance(parsed, list) and len(parsed) > 0:
+                        formatted = []
+                        for q in parsed:
+                            q_text = format_math_latex(q.get("questionText", ""))
+                            h_text = format_math_latex(q.get("hint", ""))
+                            t_top, t_sub = auto_classify_topic_subtopic(q_text, h_text, subject=subject)
+                            
+                            opts = []
+                            for o in q.get("options", []):
+                                opts.append({
+                                    "text": format_math_latex(o.get("text", "")),
+                                    "isCorrect": bool(o.get("isCorrect", False))
+                                })
+                            
+                            formatted.append({
+                                "questionText": q_text,
+                                "hint": h_text,
+                                "topic": q.get("topic") or t_top,
+                                "subtopic": q.get("subtopic") or t_sub,
+                                "options": opts
+                            })
+                        return formatted
+        except Exception as e:
+            print(f"Gemini fallback failed with model {m}: {e}")
+            
+    return []
+
+def parse_pdf_questions(file_path: str, subject: str = "English", default_topic: str = None, default_subtopic: str = None, api_key: str = None) -> list:
     """
     Parses a question paper PDF or DOCX and converts its content into target JSON structure.
+    Uses regex matching first, and falls back to Gemini AI parser if regex finds no questions.
     """
     text = extract_raw_text(file_path)
-    if not text:
+    if not text or not text.strip():
         return []
 
-    q_marker_pattern = r'(?:^|\n)\s*(?:Q\s*\d+[:\.]|Question\s+\d+[:\.]|\b\d+[\.\)])\s*'
+    # Extremely flexible question marker matching (Q1, Q 1, Q1., Q1:, Q-1, Question 1, 1., 1), (1), etc.)
+    q_marker_pattern = r'(?:^|\n)\s*(?:Q(?:uestion)?\s*[-.]?\s*\d+[:\.-]?|\b\d+[\.\):-]|(?:\([0-9]+\)))\s*'
     matches = list(re.finditer(q_marker_pattern, text, re.MULTILINE | re.IGNORECASE))
-    
-    if not matches:
-        matches = list(re.finditer(r'(?:^|\n)\s*(\d+[\.\)]|\([0-9]+\))\s*', text, re.MULTILINE))
 
     question_blocks = []
     for i in range(len(matches)):
@@ -301,7 +382,7 @@ def parse_pdf_questions(file_path: str, subject: str = "English", default_topic:
     parsed_questions = []
 
     for block in question_blocks:
-        marker_match = re.match(r'^(Q\s*\d+[:\.]|Question\s+\d+[:\.]|\d+[\.\)])\s*', block, re.IGNORECASE)
+        marker_match = re.match(r'^(Q(?:uestion)?\s*[-.]?\s*\d+[:\.-]?|\d+[\.\):-]|(?:\([0-9]+\)))\s*', block, re.IGNORECASE)
         body = block
         if marker_match:
             body = block[marker_match.end():].strip()
@@ -309,11 +390,11 @@ def parse_pdf_questions(file_path: str, subject: str = "English", default_topic:
         sol_parts = []
         correct_letter = ""
 
-        # Check for (Ans: D) or Ans: D
-        ans_inline_match = re.search(r'\(?Ans:\s*([A-D0-9a-zA-Z]+)\)?', body, re.IGNORECASE)
+        # Check for (Ans: D) or Ans: D or Key: D
+        ans_inline_match = re.search(r'\(?Ans(?:wer)?:\s*([A-E0-9a-zA-Z]+)\)?', body, re.IGNORECASE)
         if ans_inline_match:
             ans_val = ans_inline_match.group(1).strip().upper()
-            if ans_val in ['A', 'B', 'C', 'D']:
+            if ans_val in ['A', 'B', 'C', 'D', 'E']:
                 correct_letter = ans_val
             sol_parts.append(f"Correct Answer: {ans_val}")
             body = body[:ans_inline_match.start()].strip() + "\n" + body[ans_inline_match.end():].strip()
@@ -340,7 +421,7 @@ def parse_pdf_questions(file_path: str, subject: str = "English", default_topic:
 
         # Isolate Correct Answer line
         if not correct_letter:
-            ans_match = re.search(r'(?:Correct Answer|Answer|Key):\s*([A-D])\)?\s*(.*)', clean_body, re.IGNORECASE)
+            ans_match = re.search(r'(?:Correct Answer|Answer|Key):\s*([A-E])\)?\s*(.*)', clean_body, re.IGNORECASE)
             if ans_match:
                 correct_letter = ans_match.group(1).upper()
                 ans_extra = ans_match.group(2).strip()
@@ -348,8 +429,8 @@ def parse_pdf_questions(file_path: str, subject: str = "English", default_topic:
                     explanation_parts.append(ans_extra)
                 clean_body = clean_body[:ans_match.start()].strip()
 
-        # Find option start (e.g. A), (A), A., a), etc.)
-        opt_start_match = re.search(r'(?:^|\n|\s{2,})([A-D][\.\)]|\([A-D]\))\s*', clean_body, re.IGNORECASE)
+        # Find option start (e.g. A), (A), A., A:, a), a., 1), etc.)
+        opt_start_match = re.search(r'(?:^|\n|\s{2,})(?:([A-Ea-e1-5])[\.\):\:-]|\(([A-Ea-e1-5])\))\s*', clean_body)
         
         if opt_start_match:
             question_text = clean_body[:opt_start_match.start()].strip()
@@ -358,13 +439,18 @@ def parse_pdf_questions(file_path: str, subject: str = "English", default_topic:
             question_text = clean_body.strip()
             options_text = ""
 
-        # Extract Options A, B, C, D
+        # Extract Options A, B, C, D, E
         raw_options = []
         if options_text:
-            opt_matches = list(re.finditer(r'(?:^|\n|\s{2,})([A-D])[\.\)]|\(([A-D])\)', options_text, re.IGNORECASE))
+            opt_matches = list(re.finditer(r'(?:^|\n|\s{2,})(?:([A-Ea-e1-5])[\.\):\:-]|\(([A-Ea-e1-5])\))', options_text))
             for idx in range(len(opt_matches)):
                 op_m = opt_matches[idx]
                 letter = (op_m.group(1) or op_m.group(2)).upper()
+                # Map numeric options 1..5 to A..E if needed
+                if letter.isdigit():
+                    letter_num = int(letter)
+                    if 1 <= letter_num <= 5:
+                        letter = chr(64 + letter_num)
                 start_op = op_m.end()
                 end_op = opt_matches[idx+1].start() if idx + 1 < len(opt_matches) else len(options_text)
                 opt_val = options_text[start_op:end_op].strip()
@@ -399,9 +485,16 @@ def parse_pdf_questions(file_path: str, subject: str = "English", default_topic:
             parsed_questions.append({
                 "questionText": question_text,
                 "hint": hint,
-                "topic": auto_top,
-                "subtopic": auto_sub,
+                "topic": default_topic or auto_top,
+                "subtopic": default_subtopic or auto_sub,
                 "options": formatted_options
             })
 
+    # If regex parsing extracted no questions, fallback to Gemini AI parser if key is available
+    if not parsed_questions:
+        ai_questions = parse_with_gemini_fallback(text, subject=subject, api_key=api_key)
+        if ai_questions:
+            return ai_questions
+
     return parsed_questions
+

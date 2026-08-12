@@ -28,12 +28,13 @@ async def generate_hint_endpoint(request: Request):
     question_text = data.get("questionText", "")
     options = data.get("options", [])
     api_key = data.get("apiKey", "")
+    subject = data.get("subject", "English")
 
     if not question_text:
         raise HTTPException(status_code=400, detail="questionText is required.")
 
     try:
-        hint_text = generate_ai_hint(question_text=question_text, options=options, api_key=api_key)
+        hint_text = generate_ai_hint(question_text=question_text, options=options, api_key=api_key, subject=subject)
         return {
             "status": "success",
             "hint": hint_text
@@ -51,7 +52,8 @@ async def parse_document_endpoint(
     file: UploadFile = File(...),
     subject: str = Form("English"),
     topic: str = Form(None),
-    subtopic: str = Form(None)
+    subtopic: str = Form(None),
+    apiKey: str = Form(None)
 ):
     filename_lower = file.filename.lower()
     allowed_exts = [".pdf", ".docx", ".doc"]
@@ -71,7 +73,8 @@ async def parse_document_endpoint(
             file_path=tmp_path,
             subject=subject,
             default_topic=topic.strip() if topic else None,
-            default_subtopic=subtopic.strip() if subtopic else None
+            default_subtopic=subtopic.strip() if subtopic else None,
+            api_key=apiKey.strip() if apiKey else None
         )
     finally:
         if 'tmp_path' in locals() and os.path.exists(tmp_path):

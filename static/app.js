@@ -165,9 +165,11 @@ document.addEventListener('DOMContentLoaded', () => {
   parsePdfBtn.addEventListener('click', async () => {
     if (!selectedFile) return;
 
+    const apiKey = localStorage.getItem('gemini_api_key') || '';
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('subject', selectedSubject);
+    if (apiKey) formData.append('apiKey', apiKey);
 
     showProgress('Parsing document contents...', 30);
 
@@ -525,7 +527,8 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({
           questionText: q.questionText,
           options: q.options,
-          apiKey: apiKey
+          apiKey: apiKey,
+          subject: q.subject || selectedSubject || 'English'
         })
       });
 
@@ -670,9 +673,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function cleanFormatting(str) {
     if (!str) return '';
     let cleaned = str.replace(/#+\s*/g, '');
-    cleaned = cleaned.replace(/\\\[/g, '$').replace(/\\\]/g, '$');
-    cleaned = cleaned.replace(/\$\$/g, '$');
-    cleaned = cleaned.replace(/\bStep\s*\d+[:\.-]?\s*/gi, '');
     cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, '$1');
     cleaned = cleaned.replace(/__(.*?)__/g, '$1');
     cleaned = cleaned.replace(/\*\*/g, '').replace(/__/g, '');

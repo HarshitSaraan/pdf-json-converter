@@ -3,33 +3,168 @@ import requests
 import json
 import re
 
+ENGLISH_PROMPT_TEMPLATE = """Generate the solution for the given Verbal Ability question in a clear, structured, and concise format.
+
+Start by identifying the relevant concept or reasoning approach required to solve the question. Explain the concept only to the extent necessary to understand why the correct option works.
+
+Then explain the question by directly referring to the given passage, sentence, word, grammar rule, or arrangement, depending on the question type. The explanation should show the reasoning that leads to the correct answer rather than simply stating the answer.
+
+For Reading Comprehension questions, first refer to the relevant idea or statement from the passage and explain how it supports the correct option. Then briefly explain why each of the other options is incorrect. The explanation should distinguish between the main purpose of the passage and points that are merely supporting details.
+
+For Sentence Completion questions, identify what the blank requires from the context, such as a particular meaning, grammatical structure, tone, or idiomatic expression. Explain why the correct option fits the context and briefly explain why the other options do not.
+
+For Sentence Correction and Grammar questions, first state the relevant grammatical rule. Then apply that rule to the sentence and explain why the correct option is grammatically appropriate. Mention why the other options are incorrect wherever relevant.
+
+For Para Completion questions, first identify the logical structure of the paragraph. Explain what idea should come before and after the blank and how the correct option maintains the flow of the paragraph. Briefly explain why the other options disrupt the logical progression.
+
+For Vocabulary questions, identify the meaning or contextual requirement of the word. Explain what the sentence or passage requires and evaluate the options accordingly. If none of the options is a perfect fit, identify the least incorrect option and explain why it is the best available choice.
+
+For Para Jumbles, identify the logical links between the sentences. Pay particular attention to pronouns, connectors, transition words, examples, cause-and-effect relationships, chronology, and introductory or concluding statements. Establish the necessary sentence pairs or sequences and then explain how they combine to form the final order.
+
+For Idioms and Phrases, explain the meaning of the idiom in the given context and then compare it with the meanings of the options.
+
+For Analogies, first identify the exact relationship between the two words in the question. Then check each option for the same relationship and explain why the correct pair matches it.
+
+For questions involving spelling, punctuation, or other language conventions, state the relevant rule and then apply it directly to the options.
+
+The explanation should be written in natural, connected paragraphs. Do not use bullet points, numbered points, tables, emojis, icons, arrows, or any other decorative symbols. Do not use bold, italics, underlining, or highlighted text.
+
+Use clear headings such as “Concept”, “Explanation”, “Option Elimination”, and “Answer” only when they are relevant to the question. Do not force every heading into every solution.
+
+Maintain proper spacing between sections and paragraphs. Do not leave unnecessary blank lines between the question number and the question itself.
+
+Do not simply repeat the question or passage unnecessarily. Quote only the specific word, phrase, or sentence needed to establish the reasoning.
+
+For incorrect options, explain the exact reason they fail rather than merely saying that they are incorrect. Keep these explanations concise but sufficiently clear for a student preparing for management entrance examinations.
+
+The final answer should always end with the correct option in a boxed format using LaTeX.
+
+Use this structure wherever applicable:
+
+Concept
+
+[Explain the relevant concept or rule.]
+
+Explanation
+
+[Explain the reasoning using the given question, passage, sentence, word, or arrangement.]
+
+Option Elimination
+
+[Explain why the other options are incorrect, in continuous prose without bullets or numbering.]
+
+Answer
+
+\\boxed{\\text{Option X: [Correct Answer]}}
+
+Do not introduce information that is not supported by the question. The explanation should remain focused on solving the given question and should be written at the level appropriate for IPMAT, JIPMAT, and other undergraduate management entrance examinations.
+
+Question:
+{question_text}
+
+Options:
+{opts_str}"""
+
+QUANTS_PROMPT_TEMPLATE = """Generate the solution for the given Quantitative Ability question in a clear, structured, and student-friendly format suitable for IPMAT, JIPMAT, and other undergraduate management entrance examinations.
+
+The solution should not merely provide calculations. It should explain what the question is asking, identify the relevant concept, show the solution step by step, and arrive at the final answer.
+
+Start by stating exactly what the question is asking us to find. This should be written in simple language so that the student immediately understands the objective of the question.
+
+Then identify the concept being tested. Explain the general idea behind the concept in the context of the question. For example, explain that whenever certain quantities, conditions, or relationships are given, we use a particular concept or method to determine the required quantity. Keep the explanation relevant to the question and do not give unnecessary theoretical information.
+
+Then solve the question step by step. Every important mathematical step should be shown clearly. Do not skip intermediate calculations when they are necessary for understanding the logic. Explain why each step is being performed rather than simply writing a sequence of equations.
+
+Use proper mathematical notation and LaTeX formatting throughout the solution. All mathematical expressions, equations, fractions, powers, roots, inequalities, combinations, permutations, and variables should be written in LaTeX.
+
+If the question involves multiple cases or possibilities, identify them systematically and make sure that no valid case is missed and no invalid case is included. When eliminating a case, briefly explain why it is not possible.
+
+If the question can be solved using an alternative approach that is meaningfully different from the primary approach, provide it after the main solution under the heading “Alternative Approach”. Do not provide an alternative approach merely for the sake of adding one. If there is no useful alternative approach, omit this section.
+
+If a formula is used in the solution and remembering that formula would be useful for solving similar questions, add a section at the end titled “Remember”. State the relevant formula clearly in LaTeX and briefly mention what the formula is used for. Do not add a formula section if there is no important formula to remember.
+
+The final answer should always be given separately at the end under the heading “Final Answer”. The answer should be concise and presented in a boxed LaTeX format.
+
+Use the following structure:
+
+What is the question asking?
+
+[Clearly state what quantity, value, number, probability, arrangement, etc. the question requires us to find.]
+
+Concept
+
+[Explain the mathematical concept being tested. Explain the general relationship or rule: whenever these conditions are given, this is the method we use to find the required quantity.]
+
+Solution
+
+[Work through the question step by step. Explain the reasoning behind each major step and show all necessary calculations in LaTeX.]
+
+[If there are multiple cases, handle them systematically and explain why each case is valid or invalid.]
+
+Alternative Approach
+
+[Only include this section if there is a genuinely useful alternative method.]
+
+Remember
+
+[Only include this section when an important formula or standard relationship has been applied.]
+
+[Formula in LaTeX]
+
+[Brief explanation of what the formula is used for.]
+
+Final Answer
+
+\\boxed{\\text{[Final answer]}}
+
+Do not use bullet points, numbered lists, emojis, icons, arrows, decorative symbols, or tables. Write the explanation in continuous, well-spaced paragraphs.
+
+Do not use bold, italics, underlining, or highlighted text.
+
+Do not write unnecessary introductory statements such as “Let’s solve this question” or “Here is the solution.” Begin directly with “What is the question asking?” or the relevant section.
+
+Do not skip mathematical reasoning merely because the calculation appears obvious. However, avoid excessive explanation of very basic arithmetic.
+
+If the question is time-consuming but conceptually straightforward, you may mention this briefly at the beginning, for example: “This is a time-taking question, but the concept involved is straightforward.” Do not describe a question as difficult or impossible unless the question genuinely requires an unusually advanced method.
+
+For questions involving counting, permutations, combinations, probability, algebra, arithmetic, geometry, number systems, percentages, ratios, averages, functions, sequences, or other Quantitative Ability topics, adapt the “Concept” and “Solution” sections to the specific mathematical concept being tested.
+
+For counting and arrangement questions, clearly identify the objects being arranged, the restrictions or conditions imposed, and whether the positions or objects are being selected first. Explain why multiplication, addition, permutations, or combinations are being used.
+
+For algebraic questions, clearly define the variables and transform the given conditions step by step. Do not jump directly from the given expression to the answer.
+
+For number-system questions, clearly identify the relevant property, divisibility condition, parity condition, factorisation, remainder relationship, or other number-system concept before applying it.
+
+For geometry questions, identify the relevant geometric property or theorem before applying it. Clearly show how the given dimensions or relationships lead to the required quantity.
+
+For arithmetic questions involving percentages, ratios, averages, mixtures, profit and loss, time and work, time-speed-distance, or similar topics, identify the underlying relationship before substituting values.
+
+For questions involving equations or inequalities, maintain the correct mathematical direction and explain any restrictions on the variables.
+
+For questions involving cases, explicitly state when the maximum or minimum possible value has been reached so that the student understands why the case analysis stops.
+
+The final solution should be accurate, logically complete, and easy for a student to revise later. The purpose is not only to obtain the answer but to make the method reusable for similar questions.
+
+The answer must end with the boxed final answer and should contain no additional commentary after it.
+
+Question:
+{question_text}
+
+Options:
+{opts_str}"""
+
 def clean_text_formatting(text: str) -> str:
     r"""
-    Cleans text according to exact formatting rules:
-    1. Use inline-safe LaTeX only ($...$), convert \[ ... \] or $$ ... $$ to $...$.
-    2. Don't write step 1, step 2... instead just line by line.
-    3. Don't use bold letters (remove ** and __).
-    4. Don't use ### or # headings.
+    Cleans text according to formatting rules:
+    1. Remove markdown heading tags (#).
+    2. Remove bold formatting syntax (** or __).
+    3. Clean up excess spacing while maintaining paragraph double newlines.
     """
     if not text:
         return ""
 
-    # Remove markdown headings and '###'
+    # Remove markdown headings (#)
     text = re.sub(r'#+\s*', '', text)
-
-    # Convert display LaTeX \[...\] or $$...$$ to inline $...$
-    text = text.replace(r'\[', '$').replace(r'\]', '$')
-    text = text.replace('$$', '$')
-
-    # Remove newlines inside $...$ to ensure inline-safety (same line)
-    def inline_latex(match):
-        latex_content = match.group(1).strip()
-        latex_content = re.sub(r'\s+', ' ', latex_content)
-        return f"${latex_content}$"
-    text = re.sub(r'\$([^\$\n]+)\$', inline_latex, text)
-
-    # Remove "Step 1", "Step 2", "Step 1:", "Step 2.", "Step 1 -", etc.
-    text = re.sub(r'(?i)\bStep\s*\d+[:\.-]?\s*', '', text)
 
     # Remove bold syntax (**text** or __text__ or stray ** / __)
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
@@ -44,9 +179,9 @@ def clean_text_formatting(text: str) -> str:
 
     return text
 
-def generate_ai_hint(question_text: str, options: list = None, api_key: str = None) -> str:
+def generate_ai_hint(question_text: str, options: list = None, api_key: str = None, subject: str = "English") -> str:
     """
-    Generates a complete, line-by-line hint/explanation for a multiple-choice question
+    Generates a complete solution and explanation for a multiple-choice question
     using the Google Gemini API with dynamic model discovery.
     """
     key = api_key if api_key and api_key.strip() else os.environ.get("GEMINI_API_KEY", "")
@@ -57,23 +192,28 @@ def generate_ai_hint(question_text: str, options: list = None, api_key: str = No
     key = key.strip()
     options = options or []
     
-    opts_str = "\n".join([f"- {o.get('text', '')}" for o in options]) if options else "No options provided"
-    
-    prompt = f"""You are an expert academic tutor. Generate a complete, clear, line-by-line solution and explanation for the following multiple choice question.
+    opts_lines = []
+    if options:
+        for idx, opt in enumerate(options):
+            if isinstance(opt, dict):
+                opt_text = opt.get('text', '')
+                is_correct = opt.get('isCorrect', False)
+            else:
+                opt_text = str(opt)
+                is_correct = False
+            letter = chr(65 + idx)
+            correct_tag = " (Correct Option)" if is_correct else ""
+            opts_lines.append(f"Option {letter}: {opt_text}{correct_tag}")
+        opts_str = "\n".join(opts_lines)
+    else:
+        opts_str = "No options provided"
 
-CRITICAL FORMATTING RULES YOU MUST FOLLOW STRICTLY:
-1. Use inline-safe LaTeX ONLY with single dollar signs: $...$ for any mathematical expressions, variables, formulas, or equations (e.g. $2x + 5 = 15$). NEVER use display LaTeX delimiters like \\[ \\] or $$.
-2. Do NOT write "Step 1", "Step 2", "Step 3", etc. Write the solution line by line in clean consecutive normal sentences without step numbers or step titles.
-3. Do NOT use bold letters or bold markdown syntax (do NOT use ** or __ anywhere).
-4. Do NOT use ### or any markdown heading tags anywhere in the output.
-
-Question:
-{question_text}
-
-Options:
-{opts_str}
-
-Solution & Explanation:"""
+    # Select subject-specific prompt template
+    subj_lower = (subject or "").lower().strip()
+    if "quant" in subj_lower or "math" in subj_lower:
+        prompt = QUANTS_PROMPT_TEMPLATE.format(question_text=question_text, opts_str=opts_str)
+    else:
+        prompt = ENGLISH_PROMPT_TEMPLATE.format(question_text=question_text, opts_str=opts_str)
 
     payload = {
         "contents": [
@@ -138,7 +278,6 @@ Solution & Explanation:"""
     # 2. Call generateContent on discovered model
     last_err = ""
     for m_full_name in discovered_models:
-        # Strip "models/" prefix if present to format URL
         clean_model_name = m_full_name.replace("models/", "")
         gen_url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model_name}:generateContent?key={key}"
         
@@ -167,5 +306,6 @@ Solution & Explanation:"""
         except Exception as e:
             last_err = str(e)
 
-    raise RuntimeError(f"Could not generate hint: {last_err}")
+    raise RuntimeError(f"Could not generate solution: {last_err}")
+
 
