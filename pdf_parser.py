@@ -458,14 +458,37 @@ def parse_pdf_questions(
 ) -> list:
     """
     Parses a question paper PDF or DOCX and converts its content into target JSON structure.
-    Uses regex matching first, and falls back to AI parser (Abacus.AI or Gemini) if regex finds no questions.
+    AI extraction (Abacus.AI / Gemini) is performed first by default.
+    Stage 1 regex parser logic is kept in comments below for future reference.
     """
-
     text = extract_raw_text(file_path)
     if not text or not text.strip():
         return []
 
-    # Extremely flexible question marker matching (Q1, Q 1, Q1., Q1:, Q-1, Question 1, 1., 1), (1), etc.)
+    # =========================================================================
+    # PRIMARY PARSER: AI Extraction (Abacus.AI / Gemini)
+    # =========================================================================
+    provider_clean = (provider or "gemini").lower().strip()
+    if provider_clean == "abacus" or (abacus_key and not api_key):
+        ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
+        if ai_questions:
+            return ai_questions
+
+    # Gemini / default AI parser
+    ai_questions = parse_with_gemini_fallback(text, subject=subject, api_key=api_key)
+    if ai_questions:
+        return ai_questions
+
+    # Abacus backup if Gemini fails or key provided
+    if abacus_key:
+        ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
+        if ai_questions:
+            return ai_questions
+
+    # =========================================================================
+    # STAGE 1: LOCAL REGEX PARSER (KEPT IN COMMENTS - UNCOMMENT IF NEEDED AGAIN)
+    # =========================================================================
+    """
     q_marker_pattern = r'(?:^|\n)\s*(?:Q(?:uestion)?\s*[-.]?\s*\d+[:\.-]?|\b\d+[\.\):-]|(?:\([0-9]+\)))\s*'
     matches = list(re.finditer(q_marker_pattern, text, re.MULTILINE | re.IGNORECASE))
 
@@ -487,7 +510,6 @@ def parse_pdf_questions(
         sol_parts = []
         correct_letter = ""
 
-        # Check for (Ans: D) or Ans: D or Key: D
         ans_inline_match = re.search(r'\(?Ans(?:wer)?:\s*([A-E0-9a-zA-Z]+)\)?', body, re.IGNORECASE)
         if ans_inline_match:
             ans_val = ans_inline_match.group(1).strip().upper()
@@ -516,7 +538,6 @@ def parse_pdf_questions(
         if exp_match:
             clean_body = clean_body[:exp_match.start()].strip()
 
-        # Isolate Correct Answer line
         if not correct_letter:
             ans_match = re.search(r'(?:Correct Answer|Answer|Key):\s*([A-E])\)?\s*(.*)', clean_body, re.IGNORECASE)
             if ans_match:
@@ -526,7 +547,6 @@ def parse_pdf_questions(
                     explanation_parts.append(ans_extra)
                 clean_body = clean_body[:ans_match.start()].strip()
 
-        # Find option start (e.g. A), (A), A., A:, a), a., 1), etc.)
         opt_start_match = re.search(r'(?:^|\n|\s{2,})(?:([A-Ea-e1-5])[\.\):\:-]|\(([A-Ea-e1-5])\))\s*', clean_body)
         
         if opt_start_match:
@@ -536,14 +556,12 @@ def parse_pdf_questions(
             question_text = clean_body.strip()
             options_text = ""
 
-        # Extract Options A, B, C, D, E
         raw_options = []
         if options_text:
             opt_matches = list(re.finditer(r'(?:^|\n|\s{2,})(?:([A-Ea-e1-5])[\.\):\:-]|\(([A-Ea-e1-5])\))', options_text))
             for idx in range(len(opt_matches)):
                 op_m = opt_matches[idx]
                 letter = (op_m.group(1) or op_m.group(2)).upper()
-                # Map numeric options 1..5 to A..E if needed
                 if letter.isdigit():
                     letter_num = int(letter)
                     if 1 <= letter_num <= 5:
@@ -574,14 +592,12 @@ def parse_pdf_questions(
         else:
             hint = ""
 
-        # Extract question number if present in marker
         q_num_str = str(len(parsed_questions) + 1)
         if marker_match:
             digits = re.search(r'\d+', marker_match.group(0))
             if digits:
                 q_num_str = digits.group(0)
 
-        # Handle passage context propagation for multi-question passage sets
         if len(question_text) > 120 and ("passage" in question_text.lower() or len(question_text.splitlines()) > 3):
             last_passage = question_text
         elif not question_text:
@@ -602,26 +618,8 @@ def parse_pdf_questions(
                 "subtopic": default_subtopic or auto_sub,
                 "options": formatted_options
             })
+    """
 
-    # If regex parsing extracted no questions, fallback to AI parser (Abacus.AI or Gemini)
-    if not parsed_questions:
-        provider_clean = (provider or "gemini").lower().strip()
-        if provider_clean == "abacus" or (abacus_key and not api_key):
-            ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
-            if ai_questions:
-                return ai_questions
-        
-        # Default or fallback to Gemini
-        ai_questions = parse_with_gemini_fallback(text, subject=subject, api_key=api_key)
-        if ai_questions:
-            return ai_questions
-            
-        # If Gemini failed but Abacus key exists, try Abacus as backup
-        if abacus_key:
-            ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
-            if ai_questions:
-                return ai_questions
-
-    return parsed_questions
+    return []
 
 
