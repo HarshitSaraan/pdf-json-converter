@@ -44,16 +44,50 @@ document.addEventListener('DOMContentLoaded', () => {
   const cancelAiModalBtn = document.getElementById('cancelAiModalBtn');
   const saveAiModalBtn = document.getElementById('saveAiModalBtn');
   const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
+  const abacusApiKeyInput = document.getElementById('abacusApiKeyInput');
+  const abacusModelSelect = document.getElementById('abacusModelSelect');
+  const providerGeminiBtn = document.getElementById('providerGeminiBtn');
+  const providerAbacusBtn = document.getElementById('providerAbacusBtn');
+  const geminiConfigBox = document.getElementById('geminiConfigBox');
+  const abacusConfigBox = document.getElementById('abacusConfigBox');
   const autoGenerateAllHintsBtn = document.getElementById('autoGenerateAllHintsBtn');
 
-  // Load stored Gemini API key
-  const savedKey = localStorage.getItem('gemini_api_key') || '';
-  if (geminiApiKeyInput) geminiApiKeyInput.value = savedKey;
+  // Load stored AI settings
+  let activeProvider = localStorage.getItem('llm_provider') || 'gemini';
+  const savedGeminiKey = localStorage.getItem('gemini_api_key') || '';
+  const savedAbacusKey = localStorage.getItem('abacus_api_key') || '';
+  const savedAbacusModel = localStorage.getItem('abacus_model') || 'gpt-4o';
+
+  if (geminiApiKeyInput) geminiApiKeyInput.value = savedGeminiKey;
+  if (abacusApiKeyInput) abacusApiKeyInput.value = savedAbacusKey;
+  if (abacusModelSelect) abacusModelSelect.value = savedAbacusModel;
+
+  function updateProviderUI(provider) {
+    activeProvider = provider;
+    if (provider === 'abacus') {
+      if (providerAbacusBtn) providerAbacusBtn.classList.add('active');
+      if (providerGeminiBtn) providerGeminiBtn.classList.remove('active');
+      if (abacusConfigBox) abacusConfigBox.classList.remove('hidden');
+      if (geminiConfigBox) geminiConfigBox.classList.add('hidden');
+    } else {
+      if (providerGeminiBtn) providerGeminiBtn.classList.add('active');
+      if (providerAbacusBtn) providerAbacusBtn.classList.remove('active');
+      if (geminiConfigBox) geminiConfigBox.classList.remove('hidden');
+      if (abacusConfigBox) abacusConfigBox.classList.add('hidden');
+    }
+  }
+
+  if (providerGeminiBtn) providerGeminiBtn.addEventListener('click', () => updateProviderUI('gemini'));
+  if (providerAbacusBtn) providerAbacusBtn.addEventListener('click', () => updateProviderUI('abacus'));
 
   // AI Modal handlers
   if (aiSettingsBtn) {
     aiSettingsBtn.addEventListener('click', () => {
-      geminiApiKeyInput.value = localStorage.getItem('gemini_api_key') || '';
+      activeProvider = localStorage.getItem('llm_provider') || 'gemini';
+      if (geminiApiKeyInput) geminiApiKeyInput.value = localStorage.getItem('gemini_api_key') || '';
+      if (abacusApiKeyInput) abacusApiKeyInput.value = localStorage.getItem('abacus_api_key') || '';
+      if (abacusModelSelect) abacusModelSelect.value = localStorage.getItem('abacus_model') || 'gpt-4o';
+      updateProviderUI(activeProvider);
       aiModalOverlay.classList.remove('hidden');
     });
   }
@@ -64,10 +98,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (saveAiModalBtn) {
     saveAiModalBtn.addEventListener('click', () => {
-      const keyVal = geminiApiKeyInput.value.trim();
-      localStorage.setItem('gemini_api_key', keyVal);
+      const gKey = geminiApiKeyInput ? geminiApiKeyInput.value.trim() : '';
+      const aKey = abacusApiKeyInput ? abacusApiKeyInput.value.trim() : '';
+      const aModel = abacusModelSelect ? abacusModelSelect.value : 'gpt-4o';
+
+      localStorage.setItem('llm_provider', activeProvider);
+      localStorage.setItem('gemini_api_key', gKey);
+      localStorage.setItem('abacus_api_key', aKey);
+      localStorage.setItem('abacus_model', aModel);
+      
       closeAiModal();
-      alert(keyVal ? 'Google Gemini API Key saved locally!' : 'API Key cleared.');
+      const provName = activeProvider === 'abacus' ? 'Abacus.AI' : 'Google Gemini';
+      alert(`AI Settings saved! Active Engine: ${provName}`);
     });
   }
 
@@ -166,10 +208,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!selectedFile) return;
 
     const apiKey = localStorage.getItem('gemini_api_key') || '';
+    const abacusApiKey = localStorage.getItem('abacus_api_key') || '';
+    const llmProvider = localStorage.getItem('llm_provider') || 'gemini';
+    const abacusModel = localStorage.getItem('abacus_model') || 'gpt-4o';
+
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('subject', selectedSubject);
+    formData.append('llmProvider', llmProvider);
+    formData.append('model', abacusModel);
     if (apiKey) formData.append('apiKey', apiKey);
+    if (abacusApiKey) formData.append('abacusApiKey', abacusApiKey);
 
     showProgress('Parsing document contents...', 30);
 
@@ -513,6 +562,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!q) return;
 
     const apiKey = localStorage.getItem('gemini_api_key') || '';
+    const abacusApiKey = localStorage.getItem('abacus_api_key') || '';
+    const llmProvider = localStorage.getItem('llm_provider') || 'gemini';
+    const abacusModel = localStorage.getItem('abacus_model') || 'gpt-4o';
     
     const origHtml = btnElement ? btnElement.innerHTML : '';
     if (btnElement) {
@@ -528,6 +580,9 @@ document.addEventListener('DOMContentLoaded', () => {
           questionText: q.questionText,
           options: q.options,
           apiKey: apiKey,
+          abacusApiKey: abacusApiKey,
+          llmProvider: llmProvider,
+          model: abacusModel,
           subject: q.subject || selectedSubject || 'English'
         })
       });

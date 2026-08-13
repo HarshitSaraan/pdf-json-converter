@@ -277,6 +277,94 @@ def auto_classify_topic_subtopic(question_text: str, hint_text: str = "", subjec
     else:
         return "Vocabulary", "Definition"
 
+def parse_with_abacus_fallback(raw_text: str, subject: str = "English", abacus_key: str = None, model: str = "gpt-4o") -> list:
+    """Uses Abacus.AI API to extract questions when regex parsing finds 0 questions."""
+    key = abacus_key if abacus_key and abacus_key.strip() else os.environ.get("ABACUS_API_KEY", "")
+    if not key or not key.strip():
+        return []
+    
+    import requests
+    prompt = f"""You are an expert academic document parser. Extract all multiple choice questions from the given document text into a clean JSON array.
+
+Return ONLY a valid JSON array of objects with this structure:
+[
+  {{
+    "questionText": "Full text of the question",
+    "hint": "Any hint, solution, or explanation provided in text (or empty string)",
+    "topic": "Appropriate topic name",
+    "subtopic": "Appropriate subtopic name",
+    "options": [
+      {{"text": "Option A text", "isCorrect": false}},
+      {{"text": "Option B text", "isCorrect": false}},
+      {{"text": "Option C text", "isCorrect": false}},
+      {{"text": "Option D text", "isCorrect": false}}
+    ]
+  }}
+]
+
+Strict Rules:
+- Extract every question present in the text.
+- Do not add extra conversational text outside the JSON code block.
+
+Subject: {subject}
+
+Document Text:
+{raw_text[:16000]}"""
+
+    model_name = model if model and model.strip() else "gpt-4o"
+    routellm_endpoints = [
+        "https://routellm.abacus.ai/v1/chat/completions",
+        "https://paas.abacus.ai/v1/chat/completions",
+        "https://api.abacus.ai/v1/chat/completions"
+    ]
+    for ep in routellm_endpoints:
+        headers = {
+            "Authorization": f"Bearer {key.strip()}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "max_tokens": 4096
+        }
+        try:
+            r = requests.post(ep, json=payload, headers=headers, timeout=30)
+            if r.status_code == 200:
+                res_data = r.json()
+                choices = res_data.get("choices", [])
+                if choices:
+                    txt = choices[0].get("message", {}).get("content", "").strip()
+                    match = re.search(r'```(?:json)?\s*(\[.*\])\s*```', txt, re.DOTALL)
+                    json_str = match.group(1) if match else txt
+                    parsed = json.loads(json_str)
+                    if isinstance(parsed, list) and len(parsed) > 0:
+                        formatted = []
+                        for q in parsed:
+                            q_text = format_math_latex(q.get("questionText", ""))
+                            h_text = format_math_latex(q.get("hint", ""))
+                            t_top, t_sub = auto_classify_topic_subtopic(q_text, h_text, subject=subject)
+                            
+                            opts = []
+                            for o in q.get("options", []):
+                                opts.append({
+                                    "text": format_math_latex(o.get("text", "")),
+                                    "isCorrect": bool(o.get("isCorrect", False))
+                                })
+                            
+                            formatted.append({
+                                "questionText": q_text,
+                                "hint": h_text,
+                                "topic": q.get("topic") or t_top,
+                                "subtopic": q.get("subtopic") or t_sub,
+                                "options": opts
+                            })
+                        return formatted
+        except Exception as e:
+            print(f"Abacus fallback parsing error ({ep}): {e}")
+
+    return []
+
 def parse_with_gemini_fallback(raw_text: str, subject: str = "English", api_key: str = None) -> list:
     """Uses Google Gemini API to extract questions when regex parsing finds 0 questions."""
     key = api_key if api_key and api_key.strip() else os.environ.get("GEMINI_API_KEY", "")
@@ -328,7 +416,6 @@ Document Text:
                 if candidates:
                     parts = candidates[0].get('content', {}).get('parts', [])
                     txt = "\n".join([p.get('text', '') for p in parts if 'text' in p]).strip()
-                    # Clean code block backticks
                     match = re.search(r'```(?:json)?\s*(\[.*\])\s*```', txt, re.DOTALL)
                     json_str = match.group(1) if match else txt
                     parsed = json.loads(json_str)
@@ -359,11 +446,21 @@ Document Text:
             
     return []
 
-def parse_pdf_questions(file_path: str, subject: str = "English", default_topic: str = None, default_subtopic: str = None, api_key: str = None) -> list:
+def parse_pdf_questions(
+    file_path: str,
+    subject: str = "English",
+    default_topic: str = None,
+    default_subtopic: str = None,
+    api_key: str = None,
+    abacus_key: str = None,
+    provider: str = "gemini",
+    model: str = "gpt-4o"
+) -> list:
     """
     Parses a question paper PDF or DOCX and converts its content into target JSON structure.
-    Uses regex matching first, and falls back to Gemini AI parser if regex finds no questions.
+    Uses regex matching first, and falls back to AI parser (Abacus.AI or Gemini) if regex finds no questions.
     """
+
     text = extract_raw_text(file_path)
     if not text or not text.strip():
         return []
@@ -506,11 +603,25 @@ def parse_pdf_questions(file_path: str, subject: str = "English", default_topic:
                 "options": formatted_options
             })
 
-    # If regex parsing extracted no questions, fallback to Gemini AI parser if key is available
+    # If regex parsing extracted no questions, fallback to AI parser (Abacus.AI or Gemini)
     if not parsed_questions:
+        provider_clean = (provider or "gemini").lower().strip()
+        if provider_clean == "abacus" or (abacus_key and not api_key):
+            ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
+            if ai_questions:
+                return ai_questions
+        
+        # Default or fallback to Gemini
         ai_questions = parse_with_gemini_fallback(text, subject=subject, api_key=api_key)
         if ai_questions:
             return ai_questions
+            
+        # If Gemini failed but Abacus key exists, try Abacus as backup
+        if abacus_key:
+            ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
+            if ai_questions:
+                return ai_questions
 
     return parsed_questions
+
 

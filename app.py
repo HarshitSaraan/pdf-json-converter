@@ -23,18 +23,29 @@ os.makedirs("static", exist_ok=True)
 @app.post("/api/generate-hint")
 @app.post("/generate-hint")
 async def generate_hint_endpoint(request: Request):
-    """Generates AI hint/explanation using Google Gemini API."""
+    """Generates AI hint/explanation using Google Gemini or Abacus.AI API."""
     data = await request.json()
     question_text = data.get("questionText", "")
     options = data.get("options", [])
     api_key = data.get("apiKey", "")
+    abacus_key = data.get("abacusApiKey", "")
+    provider = data.get("llmProvider", "gemini")
+    model = data.get("model", "gpt-4o")
     subject = data.get("subject", "English")
 
     if not question_text:
         raise HTTPException(status_code=400, detail="questionText is required.")
 
     try:
-        hint_text = generate_ai_hint(question_text=question_text, options=options, api_key=api_key, subject=subject)
+        hint_text = generate_ai_hint(
+            question_text=question_text,
+            options=options,
+            api_key=api_key,
+            abacus_key=abacus_key,
+            provider=provider,
+            model=model,
+            subject=subject
+        )
         return {
             "status": "success",
             "hint": hint_text
@@ -53,7 +64,10 @@ async def parse_document_endpoint(
     subject: str = Form("English"),
     topic: str = Form(None),
     subtopic: str = Form(None),
-    apiKey: str = Form(None)
+    apiKey: str = Form(None),
+    abacusApiKey: str = Form(None),
+    llmProvider: str = Form("gemini"),
+    model: str = Form("gpt-4o")
 ):
     filename_lower = file.filename.lower()
     allowed_exts = [".pdf", ".docx", ".doc"]
@@ -74,7 +88,10 @@ async def parse_document_endpoint(
             subject=subject,
             default_topic=topic.strip() if topic else None,
             default_subtopic=subtopic.strip() if subtopic else None,
-            api_key=apiKey.strip() if apiKey else None
+            api_key=apiKey.strip() if apiKey else None,
+            abacus_key=abacusApiKey.strip() if abacusApiKey else None,
+            provider=llmProvider.strip() if llmProvider else "gemini",
+            model=model.strip() if model else "gpt-4o"
         )
     finally:
         if 'tmp_path' in locals() and os.path.exists(tmp_path):
