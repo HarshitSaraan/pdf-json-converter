@@ -278,13 +278,34 @@ def auto_classify_topic_subtopic(question_text: str, hint_text: str = "", subjec
         return "Vocabulary", "Definition"
 
 def parse_with_abacus_fallback(raw_text: str, subject: str = "English", abacus_key: str = None, model: str = "gpt-4o") -> list:
-    """Uses Abacus.AI API to extract questions when regex parsing finds 0 questions."""
+    """Uses Abacus.AI API to extract questions in chunks when regex parsing finds 0 questions."""
     key = abacus_key if abacus_key and abacus_key.strip() else os.environ.get("ABACUS_API_KEY", "")
     if not key or not key.strip():
         return []
     
     import requests
-    prompt = f"""You are an expert academic document parser. Extract all multiple choice questions from the given document text into a clean JSON array.
+
+    # Split text into chunks of ~5000 chars to avoid max_token output truncation
+    chunk_size = 5000
+    paragraphs = raw_text.split("\n\n")
+    chunks = []
+    curr = ""
+    for p in paragraphs:
+        if len(curr) + len(p) > chunk_size and curr.strip():
+            chunks.append(curr.strip())
+            curr = p
+        else:
+            curr += "\n\n" + p if curr else p
+    if curr.strip():
+        chunks.append(curr.strip())
+
+    if not chunks:
+        chunks = [raw_text[:16000]]
+
+    all_parsed_questions = []
+
+    for chunk in chunks:
+        prompt = f"""You are an expert academic document parser. Extract all multiple choice questions from the given document snippet into a clean JSON array.
 
 Return ONLY a valid JSON array of objects with this structure:
 [
@@ -303,76 +324,105 @@ Return ONLY a valid JSON array of objects with this structure:
 ]
 
 Strict Rules:
-- Extract every question present in the text.
+- Extract every question present in the snippet.
 - Do not add extra conversational text outside the JSON code block.
 
 Subject: {subject}
 
-Document Text:
-{raw_text[:16000]}"""
+Document Snippet:
+{chunk}"""
 
-    model_name = model if model and model.strip() else "gpt-4o"
-    routellm_endpoints = [
-        "https://routellm.abacus.ai/v1/chat/completions",
-        "https://paas.abacus.ai/v1/chat/completions",
-        "https://api.abacus.ai/v1/chat/completions"
-    ]
-    for ep in routellm_endpoints:
-        headers = {
-            "Authorization": f"Bearer {key.strip()}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": model_name,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "max_tokens": 4096
-        }
-        try:
-            r = requests.post(ep, json=payload, headers=headers, timeout=30)
-            if r.status_code == 200:
-                res_data = r.json()
-                choices = res_data.get("choices", [])
-                if choices:
-                    txt = choices[0].get("message", {}).get("content", "").strip()
-                    match = re.search(r'```(?:json)?\s*(\[.*\])\s*```', txt, re.DOTALL)
-                    json_str = match.group(1) if match else txt
-                    parsed = json.loads(json_str)
-                    if isinstance(parsed, list) and len(parsed) > 0:
-                        formatted = []
-                        for q in parsed:
-                            q_text = format_math_latex(q.get("questionText", ""))
-                            h_text = format_math_latex(q.get("hint", ""))
-                            t_top, t_sub = auto_classify_topic_subtopic(q_text, h_text, subject=subject)
-                            
-                            opts = []
-                            for o in q.get("options", []):
-                                opts.append({
-                                    "text": format_math_latex(o.get("text", "")),
-                                    "isCorrect": bool(o.get("isCorrect", False))
+        model_name = model if model and model.strip() else "gpt-4o"
+        routellm_endpoints = [
+            "https://routellm.abacus.ai/v1/chat/completions",
+            "https://paas.abacus.ai/v1/chat/completions",
+            "https://api.abacus.ai/v1/chat/completions"
+        ]
+        parsed_chunk = False
+        for ep in routellm_endpoints:
+            if parsed_chunk: break
+            headers = {
+                "Authorization": f"Bearer {key.strip()}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": model_name,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.1,
+                "max_tokens": 4096
+            }
+            try:
+                r = requests.post(ep, json=payload, headers=headers, timeout=30)
+                if r.status_code == 200:
+                    res_data = r.json()
+                    choices = res_data.get("choices", [])
+                    if choices:
+                        txt = choices[0].get("message", {}).get("content", "").strip()
+                        match = re.search(r'```(?:json)?\s*(\[.*\])\s*```', txt, re.DOTALL)
+                        json_str = match.group(1) if match else txt
+                        try:
+                            parsed = json.loads(json_str)
+                        except Exception:
+                            fixed_json = re.sub(r',\s*([\]}])', r'\1', json_str)
+                            if not fixed_json.rstrip().endswith("]"):
+                                fixed_json = fixed_json.rstrip() + "]"
+                            parsed = json.loads(fixed_json)
+
+                        if isinstance(parsed, list) and len(parsed) > 0:
+                            for q in parsed:
+                                q_text = format_math_latex(q.get("questionText", ""))
+                                h_text = format_math_latex(q.get("hint", ""))
+                                t_top, t_sub = auto_classify_topic_subtopic(q_text, h_text, subject=subject)
+                                
+                                opts = []
+                                for o in q.get("options", []):
+                                    opts.append({
+                                        "text": format_math_latex(o.get("text", "")),
+                                        "isCorrect": bool(o.get("isCorrect", False))
+                                    })
+                                
+                                all_parsed_questions.append({
+                                    "questionText": q_text,
+                                    "hint": h_text,
+                                    "topic": q.get("topic") or t_top,
+                                    "subtopic": q.get("subtopic") or t_sub,
+                                    "options": opts
                                 })
-                            
-                            formatted.append({
-                                "questionText": q_text,
-                                "hint": h_text,
-                                "topic": q.get("topic") or t_top,
-                                "subtopic": q.get("subtopic") or t_sub,
-                                "options": opts
-                            })
-                        return formatted
-        except Exception as e:
-            print(f"Abacus fallback parsing error ({ep}): {e}")
+                            parsed_chunk = True
+            except Exception as e:
+                print(f"Abacus fallback parsing error ({ep}): {e}")
 
-    return []
+    return all_parsed_questions
 
 def parse_with_gemini_fallback(raw_text: str, subject: str = "English", api_key: str = None) -> list:
-    """Uses Google Gemini API to extract questions when regex parsing finds 0 questions."""
+    """Uses Google Gemini API to extract questions in chunks when regex parsing finds 0 questions."""
     key = api_key if api_key and api_key.strip() else os.environ.get("GEMINI_API_KEY", "")
     if not key or not key.strip():
         return []
     
     import requests
-    prompt = f"""You are an expert academic document parser. Extract all multiple choice questions from the given document text into a clean JSON array.
+
+    chunk_size = 5000
+    paragraphs = raw_text.split("\n\n")
+    chunks = []
+    curr = ""
+    for p in paragraphs:
+        if len(curr) + len(p) > chunk_size and curr.strip():
+            chunks.append(curr.strip())
+            curr = p
+        else:
+            curr += "\n\n" + p if curr else p
+    if curr.strip():
+        chunks.append(curr.strip())
+
+    if not chunks:
+        chunks = [raw_text[:16000]]
+
+    all_parsed_questions = []
+
+    models = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"]
+    for chunk in chunks:
+        prompt = f"""You are an expert academic document parser. Extract all multiple choice questions from the given document text into a clean JSON array.
 
 Return ONLY a valid JSON array of objects with this structure:
 [
@@ -397,54 +447,60 @@ Strict Rules:
 Subject: {subject}
 
 Document Text:
-{raw_text[:16000]}"""
+{chunk}"""
 
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}
-    }
-    
-    # Try calling Gemini models
-    models = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"]
-    for m in models:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={key.strip()}"
-        try:
-            r = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=25)
-            if r.status_code == 200:
-                res_data = r.json()
-                candidates = res_data.get('candidates', [])
-                if candidates:
-                    parts = candidates[0].get('content', {}).get('parts', [])
-                    txt = "\n".join([p.get('text', '') for p in parts if 'text' in p]).strip()
-                    match = re.search(r'```(?:json)?\s*(\[.*\])\s*```', txt, re.DOTALL)
-                    json_str = match.group(1) if match else txt
-                    parsed = json.loads(json_str)
-                    if isinstance(parsed, list) and len(parsed) > 0:
-                        formatted = []
-                        for q in parsed:
-                            q_text = format_math_latex(q.get("questionText", ""))
-                            h_text = format_math_latex(q.get("hint", ""))
-                            t_top, t_sub = auto_classify_topic_subtopic(q_text, h_text, subject=subject)
-                            
-                            opts = []
-                            for o in q.get("options", []):
-                                opts.append({
-                                    "text": format_math_latex(o.get("text", "")),
-                                    "isCorrect": bool(o.get("isCorrect", False))
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096}
+        }
+        
+        parsed_chunk = False
+        for m in models:
+            if parsed_chunk: break
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={key.strip()}"
+            try:
+                r = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=25)
+                if r.status_code == 200:
+                    res_data = r.json()
+                    candidates = res_data.get('candidates', [])
+                    if candidates:
+                        parts = candidates[0].get('content', {}).get('parts', [])
+                        txt = "\n".join([p.get('text', '') for p in parts if 'text' in p]).strip()
+                        match = re.search(r'```(?:json)?\s*(\[.*\])\s*```', txt, re.DOTALL)
+                        json_str = match.group(1) if match else txt
+                        try:
+                            parsed = json.loads(json_str)
+                        except Exception:
+                            fixed_json = re.sub(r',\s*([\]}])', r'\1', json_str)
+                            if not fixed_json.rstrip().endswith("]"):
+                                fixed_json = fixed_json.rstrip() + "]"
+                            parsed = json.loads(fixed_json)
+
+                        if isinstance(parsed, list) and len(parsed) > 0:
+                            for q in parsed:
+                                q_text = format_math_latex(q.get("questionText", ""))
+                                h_text = format_math_latex(q.get("hint", ""))
+                                t_top, t_sub = auto_classify_topic_subtopic(q_text, h_text, subject=subject)
+                                
+                                opts = []
+                                for o in q.get("options", []):
+                                    opts.append({
+                                        "text": format_math_latex(o.get("text", "")),
+                                        "isCorrect": bool(o.get("isCorrect", False))
+                                    })
+                                
+                                all_parsed_questions.append({
+                                    "questionText": q_text,
+                                    "hint": h_text,
+                                    "topic": q.get("topic") or t_top,
+                                    "subtopic": q.get("subtopic") or t_sub,
+                                    "options": opts
                                 })
-                            
-                            formatted.append({
-                                "questionText": q_text,
-                                "hint": h_text,
-                                "topic": q.get("topic") or t_top,
-                                "subtopic": q.get("subtopic") or t_sub,
-                                "options": opts
-                            })
-                        return formatted
-        except Exception as e:
-            print(f"Gemini fallback failed with model {m}: {e}")
-            
-    return []
+                            parsed_chunk = True
+            except Exception as e:
+                print(f"Gemini fallback failed with model {m}: {e}")
+
+    return all_parsed_questions
 
 def parse_pdf_questions(
     file_path: str,
@@ -457,38 +513,17 @@ def parse_pdf_questions(
     model: str = "gpt-4o"
 ) -> list:
     """
-    Parses a question paper PDF or DOCX and converts its content into target JSON structure.
-    AI extraction (Abacus.AI / Gemini) is performed first by default.
-    Stage 1 regex parser logic is kept in comments below for future reference.
+    Parses a question paper PDF or DOCX into JSON.
+    Stage 1 regex parser runs first for instant 0-cost extraction.
+    If regex finds 0 questions, Stage 2 AI parser runs with chunking.
     """
     text = extract_raw_text(file_path)
     if not text or not text.strip():
         return []
 
     # =========================================================================
-    # PRIMARY PARSER: AI Extraction (Abacus.AI / Gemini)
+    # STAGE 1: LOCAL REGEX PARSER (FAST, 0 API COST, INSTANT)
     # =========================================================================
-    provider_clean = (provider or "gemini").lower().strip()
-    if provider_clean == "abacus" or (abacus_key and not api_key):
-        ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
-        if ai_questions:
-            return ai_questions
-
-    # Gemini / default AI parser
-    ai_questions = parse_with_gemini_fallback(text, subject=subject, api_key=api_key)
-    if ai_questions:
-        return ai_questions
-
-    # Abacus backup if Gemini fails or key provided
-    if abacus_key:
-        ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
-        if ai_questions:
-            return ai_questions
-
-    # =========================================================================
-    # STAGE 1: LOCAL REGEX PARSER (KEPT IN COMMENTS - UNCOMMENT IF NEEDED AGAIN)
-    # =========================================================================
-    """
     q_marker_pattern = r'(?:^|\n)\s*(?:Q(?:uestion)?\s*[-.]?\s*\d+[:\.-]?|\b\d+[\.\):-]|(?:\([0-9]+\)))\s*'
     matches = list(re.finditer(q_marker_pattern, text, re.MULTILINE | re.IGNORECASE))
 
@@ -618,7 +653,28 @@ def parse_pdf_questions(
                 "subtopic": default_subtopic or auto_sub,
                 "options": formatted_options
             })
-    """
+
+    # If regex parser found questions, return them immediately! (0 API tokens used)
+    if parsed_questions and len(parsed_questions) > 0:
+        return parsed_questions
+
+    # =========================================================================
+    # STAGE 2: AI PARSER FALLBACK (Runs only if Regex finds 0 questions)
+    # =========================================================================
+    provider_clean = (provider or "gemini").lower().strip()
+    if provider_clean == "abacus" or (abacus_key and not api_key):
+        ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
+        if ai_questions:
+            return ai_questions
+
+    ai_questions = parse_with_gemini_fallback(text, subject=subject, api_key=api_key)
+    if ai_questions:
+        return ai_questions
+
+    if abacus_key:
+        ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
+        if ai_questions:
+            return ai_questions
 
     return []
 
