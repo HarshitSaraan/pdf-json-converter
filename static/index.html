@@ -236,8 +236,28 @@
     </div>
   </div>
 
+  <!-- Mandatory Auth Gate / Lock Screen (Displayed when not signed in) -->
+  <div id="authLockScreen" class="auth-lock-screen">
+    <div class="lock-card">
+      <div class="lock-icon-badge">
+        <i class="fa-solid fa-shield-halved"></i>
+      </div>
+      <h2>Authentication Required</h2>
+      <p class="lock-desc">
+        QuestifyJSON is restricted to authorized team members only.
+        <br>Please sign in with your authorized Google email address to unlock the question parser & solution generator.
+      </p>
+      
+      <div id="lockScreenGoogleBtnContainer" style="display: flex; justify-content: center; margin-top: 1.5rem;"></div>
+
+      <div style="margin-top: 1.5rem; font-size: 0.78rem; color: var(--text-muted);">
+        <i class="fa-solid fa-lock" style="color: #6366f1;"></i> Protected by Google Identity & OAuth Whitelist
+      </div>
+    </div>
+  </div>
+
   <!-- Main Container -->
-  <main class="app-container">
+  <main class="app-container hidden" id="mainAppContainer">
     
     <!-- Hero / Upload Section -->
     <section class="upload-section">

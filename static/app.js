@@ -100,18 +100,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  const mainAppContainer = document.getElementById('mainAppContainer');
+  const authLockScreen = document.getElementById('authLockScreen');
+  const lockScreenGoogleBtnContainer = document.getElementById('lockScreenGoogleBtnContainer');
+
   function renderUserProfile(userData) {
     if (googleSignInContainer) googleSignInContainer.classList.add('hidden');
     if (userProfileBox) userProfileBox.classList.remove('hidden');
     if (userAvatarImg) userAvatarImg.src = userData.picture || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
     if (userNameText) userNameText.textContent = userData.name || userData.email.split('@')[0];
     if (userEmailText) userEmailText.textContent = userData.email;
+
+    // Unlock App Workspace
+    if (authLockScreen) authLockScreen.classList.add('hidden');
+    if (mainAppContainer) mainAppContainer.classList.remove('hidden');
+    if (promptSettingsBtn) promptSettingsBtn.classList.remove('hidden');
+    if (aiSettingsBtn) aiSettingsBtn.classList.remove('hidden');
+    updateStatusBadge('Ready', 'success');
   }
 
   function clearUserProfile() {
     localStorage.removeItem('google_user_session');
     if (userProfileBox) userProfileBox.classList.add('hidden');
     if (googleSignInContainer) googleSignInContainer.classList.remove('hidden');
+    
+    // Lock App Workspace
+    if (mainAppContainer) mainAppContainer.classList.add('hidden');
+    if (authLockScreen) authLockScreen.classList.remove('hidden');
+    if (promptSettingsBtn) promptSettingsBtn.classList.add('hidden');
+    if (aiSettingsBtn) aiSettingsBtn.classList.add('hidden');
+    updateStatusBadge('Auth Required', 'danger');
+    
     initGoogleAuth();
   }
 
@@ -123,6 +142,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.google && google.accounts && google.accounts.id) {
       google.accounts.id.disableAutoSelect();
     }
+    
+    // Keep app locked
+    if (mainAppContainer) mainAppContainer.classList.add('hidden');
+    if (authLockScreen) authLockScreen.classList.remove('hidden');
+    if (promptSettingsBtn) promptSettingsBtn.classList.add('hidden');
+    if (aiSettingsBtn) aiSettingsBtn.classList.add('hidden');
   }
 
   if (closeAccessDeniedBtn) {
@@ -197,7 +222,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Initialize Google Button
+    // Default locked state
+    if (mainAppContainer) mainAppContainer.classList.add('hidden');
+    if (authLockScreen) authLockScreen.classList.remove('hidden');
+    if (promptSettingsBtn) promptSettingsBtn.classList.add('hidden');
+    if (aiSettingsBtn) aiSettingsBtn.classList.add('hidden');
+
+    // Initialize Google Buttons in navbar and lock screen
     const checkGoogleInterval = setInterval(() => {
       if (window.google && google.accounts && google.accounts.id) {
         clearInterval(checkGoogleInterval);
@@ -215,6 +246,17 @@ document.addEventListener('DOMContentLoaded', () => {
             size: "medium",
             type: "standard",
             shape: "pill",
+            text: "signin_with"
+          });
+        }
+
+        if (lockScreenGoogleBtnContainer) {
+          lockScreenGoogleBtnContainer.innerHTML = '';
+          google.accounts.id.renderButton(lockScreenGoogleBtnContainer, {
+            theme: "filled_blue",
+            size: "large",
+            type: "standard",
+            shape: "rectangular",
             text: "signin_with"
           });
         }
