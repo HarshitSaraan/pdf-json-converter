@@ -760,21 +760,55 @@ Options:
       });
     });
 
+  function copyTextToClipboard(textToCopy) {
+    if (!textToCopy) return Promise.reject(new Error('Nothing to copy'));
+    
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(textToCopy);
+    } else {
+      return new Promise((resolve, reject) => {
+        try {
+          const textArea = document.createElement('textarea');
+          textArea.value = textToCopy;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          textArea.style.top = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          const successful = document.execCommand('copy');
+          document.body.removeChild(textArea);
+          if (successful) resolve();
+          else reject(new Error('execCommand copy failed'));
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
+  }
+
     document.querySelectorAll('.copy-hint-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const qIndex = parseInt(e.currentTarget.dataset.qindex);
-        const hintText = questionsData[qIndex] ? questionsData[qIndex].hint : '';
+        const btnEl = e.currentTarget;
+        const qIndex = parseInt(btnEl.dataset.qindex);
+        
+        // Read directly from the card DOM textarea for real-time edited content
+        const card = btnEl.closest('.question-card');
+        const hintTextarea = card ? card.querySelector('.q-hint-input') : null;
+        let hintText = hintTextarea ? hintTextarea.value : (questionsData[qIndex] ? questionsData[qIndex].hint : '');
+
         if (!hintText || !hintText.trim()) {
           alert('Hint text is empty!');
           return;
         }
-        navigator.clipboard.writeText(hintText).then(() => {
-          const btnEl = e.currentTarget;
+
+        copyTextToClipboard(hintText).then(() => {
           const origHtml = btnEl.innerHTML;
           btnEl.innerHTML = '<i class="fa-solid fa-check" style="color: #10b981;"></i> Copied!';
-          setTimeout(() => btnEl.innerHTML = origHtml, 2000);
+          setTimeout(() => { btnEl.innerHTML = origHtml; }, 2000);
         }).catch(err => {
-          alert('Failed to copy hint: ' + err);
+          console.error('Copy error:', err);
+          alert('Failed to copy hint to clipboard.');
         });
       });
     });
@@ -952,10 +986,12 @@ Options:
   // Copy JSON to Clipboard
   copyJsonBtn.addEventListener('click', () => {
     const jsonStr = JSON.stringify(questionsData, null, 2);
-    navigator.clipboard.writeText(jsonStr).then(() => {
+    copyTextToClipboard(jsonStr).then(() => {
       const origText = copyJsonBtn.innerHTML;
       copyJsonBtn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
       setTimeout(() => copyJsonBtn.innerHTML = origText, 2000);
+    }).catch(err => {
+      alert('Failed to copy JSON: ' + err.message);
     });
   });
 
