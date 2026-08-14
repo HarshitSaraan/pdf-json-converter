@@ -70,6 +70,160 @@ document.addEventListener('DOMContentLoaded', () => {
   const insertQuestionVar = document.getElementById('insertQuestionVar');
   const insertOptsVar = document.getElementById('insertOptsVar');
 
+  // Google Authentication & Email Whitelist Settings
+  const GOOGLE_CLIENT_ID = "1095943139935-bv47gtem4cjn9rihb2s74ccht9sq2tss.apps.googleusercontent.com";
+  const ALLOWED_EMAILS = [
+    "cnandini828@gmail.com",
+    "pratapsinghsusmit@gmail.com",
+    "thepreproute@gmail.com",
+    "harshitsaraan@gmail.com"
+  ];
+
+  const googleSignInContainer = document.getElementById('googleSignInContainer');
+  const userProfileBox = document.getElementById('userProfileBox');
+  const userAvatarImg = document.getElementById('userAvatarImg');
+  const userNameText = document.getElementById('userNameText');
+  const userEmailText = document.getElementById('userEmailText');
+  const googleSignOutBtn = document.getElementById('googleSignOutBtn');
+  const accessDeniedModalOverlay = document.getElementById('accessDeniedModalOverlay');
+  const accessDeniedMsg = document.getElementById('accessDeniedMsg');
+  const closeAccessDeniedBtn = document.getElementById('closeAccessDeniedBtn');
+
+  function parseJwtToken(token) {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function renderUserProfile(userData) {
+    if (googleSignInContainer) googleSignInContainer.classList.add('hidden');
+    if (userProfileBox) userProfileBox.classList.remove('hidden');
+    if (userAvatarImg) userAvatarImg.src = userData.picture || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
+    if (userNameText) userNameText.textContent = userData.name || userData.email.split('@')[0];
+    if (userEmailText) userEmailText.textContent = userData.email;
+  }
+
+  function clearUserProfile() {
+    localStorage.removeItem('google_user_session');
+    if (userProfileBox) userProfileBox.classList.add('hidden');
+    if (googleSignInContainer) googleSignInContainer.classList.remove('hidden');
+    initGoogleAuth();
+  }
+
+  function showAccessDenied(email) {
+    if (accessDeniedMsg) {
+      accessDeniedMsg.innerHTML = `Access Denied for <strong>${escapeHtml(email)}</strong>.<br>Your account is not on the authorized user list for QuestifyJSON. Please sign in with an authorized email address.`;
+    }
+    if (accessDeniedModalOverlay) accessDeniedModalOverlay.classList.remove('hidden');
+    if (window.google && google.accounts && google.accounts.id) {
+      google.accounts.id.disableAutoSelect();
+    }
+  }
+
+  if (closeAccessDeniedBtn) {
+    closeAccessDeniedBtn.addEventListener('click', () => {
+      if (accessDeniedModalOverlay) accessDeniedModalOverlay.classList.add('hidden');
+      clearUserProfile();
+    });
+  }
+
+  if (googleSignOutBtn) {
+    googleSignOutBtn.addEventListener('click', () => {
+      clearUserProfile();
+    });
+  }
+
+  async function handleGoogleCredentialResponse(response) {
+    const jwtData = parseJwtToken(response.credential);
+    if (!jwtData || !jwtData.email) {
+      alert("Could not process Google login response.");
+      return;
+    }
+
+    const email = jwtData.email.trim().toLowerCase();
+    
+    // Check local whitelist
+    if (!ALLOWED_EMAILS.includes(email)) {
+      showAccessDenied(email);
+      return;
+    }
+
+    // Verify with backend
+    try {
+      const authRes = await fetch(`${API_BASE}/api/auth/verify-google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: response.credential, email: email })
+      });
+      if (authRes.ok) {
+        const authData = await authRes.json();
+        if (!authData.isAuthorized) {
+          showAccessDenied(email);
+          return;
+        }
+      }
+    } catch(err) {
+      console.warn("Backend auth verification warning:", err);
+    }
+
+    const sessionData = {
+      email: email,
+      name: jwtData.name || email.split('@')[0],
+      picture: jwtData.picture || '',
+      credential: response.credential
+    };
+
+    localStorage.setItem('google_user_session', JSON.stringify(sessionData));
+    renderUserProfile(sessionData);
+  }
+
+  function initGoogleAuth() {
+    // Check saved session
+    const savedSession = localStorage.getItem('google_user_session');
+    if (savedSession) {
+      try {
+        const userData = JSON.parse(savedSession);
+        if (userData && userData.email && ALLOWED_EMAILS.includes(userData.email.toLowerCase())) {
+          renderUserProfile(userData);
+          return;
+        }
+      } catch (e) {
+        localStorage.removeItem('google_user_session');
+      }
+    }
+
+    // Initialize Google Button
+    const checkGoogleInterval = setInterval(() => {
+      if (window.google && google.accounts && google.accounts.id) {
+        clearInterval(checkGoogleInterval);
+        google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false
+        });
+
+        if (googleSignInContainer) {
+          googleSignInContainer.classList.remove('hidden');
+          googleSignInContainer.innerHTML = '';
+          google.accounts.id.renderButton(googleSignInContainer, {
+            theme: "outline",
+            size: "medium",
+            type: "standard",
+            shape: "pill",
+            text: "signin_with"
+          });
+        }
+      }
+    }, 200);
+  }
+
+  initGoogleAuth();
+
   // Load stored AI settings
   let activeProvider = localStorage.getItem('llm_provider') || 'gemini';
   const savedGeminiKey = localStorage.getItem('gemini_api_key') || '';

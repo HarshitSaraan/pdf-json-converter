@@ -18,6 +18,9 @@
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
 
+  <!-- Google Identity Services SDK -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
   <link rel="stylesheet" href="style.css?v=3.5">
 </head>
 <body>
@@ -42,6 +45,20 @@
         <button id="aiSettingsBtn" class="btn btn-outline btn-sm" title="Configure AI API Keys (Gemini & Abacus.AI)">
           <i class="fa-solid fa-key"></i> AI Settings
         </button>
+        
+        <!-- Google Authentication User Box / Sign In Button -->
+        <div id="googleSignInContainer"></div>
+        <div id="userProfileBox" class="user-profile-box hidden">
+          <img id="userAvatarImg" class="user-avatar" src="" alt="User Avatar">
+          <div class="user-info-text">
+            <span id="userNameText" class="user-name">User</span>
+            <span id="userEmailText" class="user-email">email@gmail.com</span>
+          </div>
+          <button id="googleSignOutBtn" class="btn btn-icon btn-sm text-danger" title="Sign Out">
+            <i class="fa-solid fa-right-from-bracket"></i>
+          </button>
+        </div>
+
         <button id="themeToggleBtn" class="btn btn-icon" title="Toggle Theme">
           <i class="fa-solid fa-moon"></i>
         </button>
@@ -199,6 +216,22 @@
           <button class="btn btn-secondary" id="cancelPromptsModalBtn">Cancel</button>
           <button class="btn btn-primary" id="savePromptsModalBtn"><i class="fa-solid fa-floppy-disk"></i> Save All Prompts</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Access Denied Modal -->
+  <div class="modal-overlay hidden" id="accessDeniedModalOverlay">
+    <div class="modal-card" style="max-width: 480px; text-align: center;">
+      <div style="font-size: 3rem; color: #ef4444; margin-bottom: 0.8rem;">
+        <i class="fa-solid fa-user-slash"></i>
+      </div>
+      <h3 style="color: #ef4444; margin-bottom: 0.5rem;">Access Denied</h3>
+      <p class="modal-desc" id="accessDeniedMsg" style="margin-bottom: 1.5rem; font-size: 0.95rem;">
+        Your email account is not authorized to access QuestifyJSON.
+      </p>
+      <div style="display: flex; justify-content: center; gap: 0.5rem;">
+        <button class="btn btn-primary" id="closeAccessDeniedBtn"><i class="fa-solid fa-arrow-left"></i> Try Another Account</button>
       </div>
     </div>
   </div>

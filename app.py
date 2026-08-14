@@ -20,6 +20,51 @@ app.add_middleware(
 # Ensure static folder exists
 os.makedirs("static", exist_ok=True)
 
+ALLOWED_EMAILS = {
+    "cnandini828@gmail.com",
+    "pratapsinghsusmit@gmail.com",
+    "thepreproute@gmail.com",
+    "harshitsaraan@gmail.com"
+}
+
+@app.post("/api/auth/verify-google")
+async def verify_google_token_endpoint(request: Request):
+    """Verifies Google ID Token and checks if user email is authorized."""
+    data = await request.json()
+    token = data.get("credential", "")
+    user_email = data.get("email", "").strip().lower()
+
+    if token:
+        try:
+            import requests as req
+            r = req.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={token}", timeout=10)
+            if r.status_code == 200:
+                token_data = r.json()
+                verified_email = token_data.get("email", "").strip().lower()
+                if verified_email:
+                    user_email = verified_email
+        except Exception as e:
+            print(f"Token verification warning: {e}")
+
+    if not user_email:
+        raise HTTPException(status_code=400, detail="User email is required.")
+
+    is_authorized = user_email in ALLOWED_EMAILS
+
+    if not is_authorized:
+        return {
+            "status": "denied",
+            "email": user_email,
+            "isAuthorized": False,
+            "detail": f"Access Denied: {user_email} is not on the authorized user list."
+        }
+
+    return {
+        "status": "success",
+        "email": user_email,
+        "isAuthorized": True
+    }
+
 @app.post("/api/generate-hint")
 @app.post("/generate-hint")
 async def generate_hint_endpoint(request: Request):
