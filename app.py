@@ -32,6 +32,7 @@ async def generate_hint_endpoint(request: Request):
     provider = data.get("llmProvider", "gemini")
     model = data.get("model", "gpt-4o")
     subject = data.get("subject", "English")
+    custom_prompt = data.get("customPrompt", None)
 
     if not question_text:
         raise HTTPException(status_code=400, detail="questionText is required.")
@@ -44,7 +45,8 @@ async def generate_hint_endpoint(request: Request):
             abacus_key=abacus_key,
             provider=provider,
             model=model,
-            subject=subject
+            subject=subject,
+            custom_prompt=custom_prompt
         )
         return {
             "status": "success",
@@ -67,7 +69,9 @@ async def parse_document_endpoint(
     apiKey: str = Form(None),
     abacusApiKey: str = Form(None),
     llmProvider: str = Form("gemini"),
-    model: str = Form("gpt-4o")
+    model: str = Form("gpt-4o"),
+    useAiTopics: bool = Form(False),
+    customPrompt: str = Form(None)
 ):
     filename_lower = file.filename.lower()
     allowed_exts = [".pdf", ".docx", ".doc"]
@@ -91,7 +95,9 @@ async def parse_document_endpoint(
             api_key=apiKey.strip() if apiKey else None,
             abacus_key=abacusApiKey.strip() if abacusApiKey else None,
             provider=llmProvider.strip() if llmProvider else "gemini",
-            model=model.strip() if model else "gpt-4o"
+            model=model.strip() if model else "gpt-4o",
+            use_ai_topics=useAiTopics,
+            custom_prompt=customPrompt.strip() if customPrompt else None
         )
     finally:
         if 'tmp_path' in locals() and os.path.exists(tmp_path):

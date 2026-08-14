@@ -179,7 +179,28 @@ def clean_text_formatting(text: str) -> str:
 
     return text
 
-def generate_ai_hint_abacus(question_text: str, options: list = None, abacus_key: str = None, subject: str = "English", model: str = "gpt-4o") -> str:
+def build_prompt(question_text: str, opts_str: str, subject: str = "English", custom_prompt: str = None) -> str:
+    """Builds the final prompt combining question, options, and custom/default prompt template."""
+    if custom_prompt and custom_prompt.strip():
+        tmpl = custom_prompt.strip()
+        if "{question_text}" in tmpl:
+            tmpl = tmpl.replace("{question_text}", question_text)
+        else:
+            tmpl += f"\n\nQuestion:\n{question_text}"
+        
+        if "{opts_str}" in tmpl:
+            tmpl = tmpl.replace("{opts_str}", opts_str)
+        else:
+            tmpl += f"\n\nOptions:\n{opts_str}"
+        return tmpl
+
+    subj_lower = (subject or "").lower().strip()
+    if "quant" in subj_lower or "math" in subj_lower:
+        return QUANTS_PROMPT_TEMPLATE.replace("{question_text}", question_text).replace("{opts_str}", opts_str)
+    else:
+        return ENGLISH_PROMPT_TEMPLATE.replace("{question_text}", question_text).replace("{opts_str}", opts_str)
+
+def generate_ai_hint_abacus(question_text: str, options: list = None, abacus_key: str = None, subject: str = "English", model: str = "gpt-4o", custom_prompt: str = None) -> str:
     """
     Generates a complete solution and explanation for a question using Abacus.AI API.
     Supports RouteLLM OpenAI-compatible endpoints as well as direct Abacus REST endpoints.
@@ -208,12 +229,8 @@ def generate_ai_hint_abacus(question_text: str, options: list = None, abacus_key
     else:
         opts_str = "No options provided"
 
-    # Select subject-specific prompt template
-    subj_lower = (subject or "").lower().strip()
-    if "quant" in subj_lower or "math" in subj_lower:
-        prompt = QUANTS_PROMPT_TEMPLATE.replace("{question_text}", question_text).replace("{opts_str}", opts_str)
-    else:
-        prompt = ENGLISH_PROMPT_TEMPLATE.replace("{question_text}", question_text).replace("{opts_str}", opts_str)
+    # Select subject-specific prompt template or custom prompt
+    prompt = build_prompt(question_text=question_text, opts_str=opts_str, subject=subject, custom_prompt=custom_prompt)
 
     model_name = model if model and model.strip() else "gpt-4o"
 
@@ -300,7 +317,8 @@ def generate_ai_hint(
     subject: str = "English",
     provider: str = "gemini",
     abacus_key: str = None,
-    model: str = "gpt-4o"
+    model: str = "gpt-4o",
+    custom_prompt: str = None
 ) -> str:
     """
     Unified entry point for AI hint & solution generation using either
@@ -314,7 +332,8 @@ def generate_ai_hint(
             options=options,
             abacus_key=abacus_key,
             subject=subject,
-            model=model
+            model=model,
+            custom_prompt=custom_prompt
         )
 
     # Default provider: Google Gemini
@@ -328,7 +347,8 @@ def generate_ai_hint(
                 options=options,
                 abacus_key=abacus_key,
                 subject=subject,
-                model=model
+                model=model,
+                custom_prompt=custom_prompt
             )
         raise ValueError("Google Gemini API Key is missing. Click 'AI Settings' in top navbar to enter your API key.")
 
@@ -351,12 +371,8 @@ def generate_ai_hint(
     else:
         opts_str = "No options provided"
 
-    # Select subject-specific prompt template
-    subj_lower = (subject or "").lower().strip()
-    if "quant" in subj_lower or "math" in subj_lower:
-        prompt = QUANTS_PROMPT_TEMPLATE.replace("{question_text}", question_text).replace("{opts_str}", opts_str)
-    else:
-        prompt = ENGLISH_PROMPT_TEMPLATE.replace("{question_text}", question_text).replace("{opts_str}", opts_str)
+    # Select subject-specific prompt template or custom prompt
+    prompt = build_prompt(question_text=question_text, opts_str=opts_str, subject=subject, custom_prompt=custom_prompt)
 
     payload = {
         "contents": [

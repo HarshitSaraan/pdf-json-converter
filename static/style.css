@@ -934,6 +934,11 @@ input[type="text"]:focus, textarea:focus {
   }
 }
 
+.code-chip:hover {
+  background-color: rgba(99, 102, 241, 0.15) !important;
+  border-color: #6366f1 !important;
+}
+
 /* Utilities */
 .hidden {
   display: none !important;

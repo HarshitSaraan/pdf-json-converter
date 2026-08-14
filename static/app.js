@@ -14,9 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const parsePdfBtn = document.getElementById('parsePdfBtn');
   const loadSampleBtn = document.getElementById('loadSampleBtn');
   
-  const defaultTopicInput = document.getElementById('defaultTopic');
-  const defaultSubtopicInput = document.getElementById('defaultSubtopic');
-  
   const progressContainer = document.getElementById('progressContainer');
   const progressBar = document.getElementById('progressBar');
   const progressText = document.getElementById('progressText');
@@ -38,6 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const addQuestionBtn = document.getElementById('addQuestionBtn');
   const copyJsonBtn = document.getElementById('copyJsonBtn');
   const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+  
+  // AI Engine Settings Elements
   const aiSettingsBtn = document.getElementById('aiSettingsBtn');
   const aiModalOverlay = document.getElementById('aiModalOverlay');
   const closeAiModalBtn = document.getElementById('closeAiModalBtn');
@@ -51,6 +50,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const geminiConfigBox = document.getElementById('geminiConfigBox');
   const abacusConfigBox = document.getElementById('abacusConfigBox');
   const autoGenerateAllHintsBtn = document.getElementById('autoGenerateAllHintsBtn');
+  const useAiTopicsCheckbox = document.getElementById('useAiTopicsCheckbox');
+
+  // Subject Prompts Modal Elements
+  const promptSettingsBtn = document.getElementById('promptSettingsBtn');
+  const promptsModalOverlay = document.getElementById('promptsModalOverlay');
+  const closePromptsModalBtn = document.getElementById('closePromptsModalBtn');
+  const cancelPromptsModalBtn = document.getElementById('cancelPromptsModalBtn');
+  const savePromptsModalBtn = document.getElementById('savePromptsModalBtn');
+  const modalSubjectTabs = document.getElementById('modalSubjectTabs');
+  const addNewSubjectBtn = document.getElementById('addNewSubjectBtn');
+  const addSubjectInlineBox = document.getElementById('addSubjectInlineBox');
+  const newSubjectNameInput = document.getElementById('newSubjectNameInput');
+  const confirmAddSubjectBtn = document.getElementById('confirmAddSubjectBtn');
+  const cancelAddSubjectBtn = document.getElementById('cancelAddSubjectBtn');
+  const subjectPromptTextarea = document.getElementById('subjectPromptTextarea');
+  const activeSubjectPromptLabel = document.getElementById('activeSubjectPromptLabel');
+  const resetPromptBtn = document.getElementById('resetPromptBtn');
+  const insertQuestionVar = document.getElementById('insertQuestionVar');
+  const insertOptsVar = document.getElementById('insertOptsVar');
 
   // Load stored AI settings
   let activeProvider = localStorage.getItem('llm_provider') || 'gemini';
@@ -61,6 +79,240 @@ document.addEventListener('DOMContentLoaded', () => {
   if (geminiApiKeyInput) geminiApiKeyInput.value = savedGeminiKey;
   if (abacusApiKeyInput) abacusApiKeyInput.value = savedAbacusKey;
   if (abacusModelSelect) abacusModelSelect.value = savedAbacusModel;
+
+  // Default Prompt Templates for Subjects
+  const DEFAULT_PROMPTS = {
+    "English": `Generate the solution for the given Verbal Ability question in a clear, structured, and concise format.
+
+Start by identifying the relevant concept or reasoning approach required to solve the question. Explain the concept only to the extent necessary to understand why the correct option works.
+
+Then explain the question by directly referring to the given passage, sentence, word, grammar rule, or arrangement, depending on the question type.
+
+Option Elimination: Explain why the other options are incorrect in continuous prose without bullets or numbering.
+
+The final answer should always end with the correct option in a boxed format using LaTeX:
+\\boxed{\\text{Option X: [Correct Answer]}}
+
+Question:
+{question_text}
+
+Options:
+{opts_str}`,
+
+    "Quants": `Generate the solution for the given Quantitative Ability question in a clear, structured, and student-friendly format suitable for IPMAT, JIPMAT, and entrance examinations.
+
+Start by stating exactly what the question is asking us to find.
+
+Concept: Explain the mathematical concept being tested.
+
+Solution: Work through the question step by step. Explain the reasoning behind each major step and show all necessary calculations in LaTeX.
+
+The final answer should always be given separately at the end under the heading "Final Answer" in boxed LaTeX format:
+\\boxed{\\text{[Final answer]}}
+
+Question:
+{question_text}
+
+Options:
+{opts_str}`,
+
+    "LRDI": `Generate a clear, step-by-step solution for the given Logical Reasoning / Data Interpretation question.
+
+Identify the logical structure, given conditions, or data elements.
+
+Break down the puzzle, arrangement, chart, or condition step by step.
+
+Option Elimination: Briefly explain why incorrect options fail.
+
+Final Answer: End with boxed LaTeX format:
+\\boxed{\\text{Option X: [Correct Answer]}}
+
+Question:
+{question_text}
+
+Options:
+{opts_str}`
+  };
+
+  // Saved Custom Subjects and Prompts State
+  let availableSubjects = JSON.parse(localStorage.getItem('custom_subjects') || '["English", "Quants", "LRDI"]');
+  let subjectPrompts = JSON.parse(localStorage.getItem('subject_prompts') || '{}');
+
+  // Fill default prompts if missing
+  availableSubjects.forEach(sub => {
+    if (!subjectPrompts[sub] && DEFAULT_PROMPTS[sub]) {
+      subjectPrompts[sub] = DEFAULT_PROMPTS[sub];
+    } else if (!subjectPrompts[sub]) {
+      subjectPrompts[sub] = `Generate the solution for the given ${sub} question clearly step by step.\n\nFinal Answer:\n\\boxed{\\text{Option X: [Correct Answer]}}\n\nQuestion:\n{question_text}\n\nOptions:\n{opts_str}`;
+    }
+  });
+
+  function getSubjectPrompt(subject) {
+    if (subjectPrompts[subject] && subjectPrompts[subject].trim()) {
+      return subjectPrompts[subject];
+    }
+    return DEFAULT_PROMPTS[subject] || `Generate solution for ${subject}.\n\nQuestion:\n{question_text}\n\nOptions:\n{opts_str}`;
+  }
+
+  let selectedSubject = availableSubjects[0] || 'English';
+  let activeModalSubject = selectedSubject;
+
+  // Render Subject Pills in Upload Card
+  function renderMainSubjectPillList() {
+    const subjectPillList = document.getElementById('subjectPillList');
+    if (!subjectPillList) return;
+    subjectPillList.innerHTML = '';
+    availableSubjects.forEach(sub => {
+      const btn = document.createElement('button');
+      btn.className = `subject-pill ${sub === selectedSubject ? 'active' : ''}`;
+      let icon = 'fa-book-open';
+      if (sub === 'Quants') icon = 'fa-calculator';
+      else if (sub === 'LRDI') icon = 'fa-diagram-project';
+      btn.innerHTML = `<i class="fa-solid ${icon}"></i> ${sub}`;
+      btn.addEventListener('click', () => {
+        selectedSubject = sub;
+        renderMainSubjectPillList();
+      });
+      subjectPillList.appendChild(btn);
+    });
+  }
+
+  renderMainSubjectPillList();
+
+  // Subject Prompts Modal Handlers
+  function renderModalSubjectTabs() {
+    if (!modalSubjectTabs) return;
+    modalSubjectTabs.innerHTML = '';
+    availableSubjects.forEach(sub => {
+      const btn = document.createElement('button');
+      btn.className = `subject-pill ${sub === activeModalSubject ? 'active' : ''}`;
+      btn.innerHTML = `<i class="fa-solid fa-book"></i> ${sub}`;
+      btn.addEventListener('click', () => {
+        if (subjectPromptTextarea) {
+          subjectPrompts[activeModalSubject] = subjectPromptTextarea.value;
+        }
+        activeModalSubject = sub;
+        renderModalSubjectTabs();
+        loadActiveSubjectPromptIntoTextarea();
+      });
+      modalSubjectTabs.appendChild(btn);
+    });
+  }
+
+  function loadActiveSubjectPromptIntoTextarea() {
+    if (activeSubjectPromptLabel) {
+      activeSubjectPromptLabel.innerHTML = `<i class="fa-solid fa-terminal"></i> Custom Prompt & Conditions for <strong>${activeModalSubject}</strong>:`;
+    }
+    if (subjectPromptTextarea) {
+      subjectPromptTextarea.value = getSubjectPrompt(activeModalSubject);
+    }
+  }
+
+  if (promptSettingsBtn) {
+    promptSettingsBtn.addEventListener('click', () => {
+      activeModalSubject = selectedSubject || availableSubjects[0] || 'English';
+      renderModalSubjectTabs();
+      loadActiveSubjectPromptIntoTextarea();
+      if (addSubjectInlineBox) addSubjectInlineBox.classList.add('hidden');
+      promptsModalOverlay.classList.remove('hidden');
+    });
+  }
+
+  const closePromptsModal = () => promptsModalOverlay.classList.add('hidden');
+  if (closePromptsModalBtn) closePromptsModalBtn.addEventListener('click', closePromptsModal);
+  if (cancelPromptsModalBtn) cancelPromptsModalBtn.addEventListener('click', closePromptsModal);
+
+  if (savePromptsModalBtn) {
+    savePromptsModalBtn.addEventListener('click', () => {
+      if (subjectPromptTextarea) {
+        subjectPrompts[activeModalSubject] = subjectPromptTextarea.value;
+      }
+      localStorage.setItem('custom_subjects', JSON.stringify(availableSubjects));
+      localStorage.setItem('subject_prompts', JSON.stringify(subjectPrompts));
+      renderMainSubjectPillList();
+      closePromptsModal();
+      alert('Subject Prompts & Conditions saved successfully!');
+    });
+  }
+
+  if (resetPromptBtn) {
+    resetPromptBtn.addEventListener('click', () => {
+      if (confirm(`Reset prompt for "${activeModalSubject}" to system default?`)) {
+        if (DEFAULT_PROMPTS[activeModalSubject]) {
+          subjectPrompts[activeModalSubject] = DEFAULT_PROMPTS[activeModalSubject];
+        } else {
+          subjectPrompts[activeModalSubject] = `Generate the solution for the given ${activeModalSubject} question clearly step by step.\n\nFinal Answer:\n\\boxed{\\text{Option X: [Correct Answer]}}\n\nQuestion:\n{question_text}\n\nOptions:\n{opts_str}`;
+        }
+        loadActiveSubjectPromptIntoTextarea();
+      }
+    });
+  }
+
+  if (addNewSubjectBtn) {
+    addNewSubjectBtn.addEventListener('click', () => {
+      if (addSubjectInlineBox) {
+        addSubjectInlineBox.classList.remove('hidden');
+        if (newSubjectNameInput) {
+          newSubjectNameInput.value = '';
+          newSubjectNameInput.focus();
+        }
+      }
+    });
+  }
+
+  if (cancelAddSubjectBtn) {
+    cancelAddSubjectBtn.addEventListener('click', () => {
+      if (addSubjectInlineBox) addSubjectInlineBox.classList.add('hidden');
+    });
+  }
+
+  if (confirmAddSubjectBtn) {
+    confirmAddSubjectBtn.addEventListener('click', () => {
+      const sName = newSubjectNameInput ? newSubjectNameInput.value.trim() : '';
+      if (!sName) {
+        alert('Please enter a subject name.');
+        return;
+      }
+      if (!availableSubjects.includes(sName)) {
+        availableSubjects.push(sName);
+        subjectPrompts[sName] = `Generate the solution for the given ${sName} question clearly step by step.\n\nFinal Answer:\n\\boxed{\\text{Option X: [Correct Answer]}}\n\nQuestion:\n{question_text}\n\nOptions:\n{opts_str}`;
+        activeModalSubject = sName;
+        renderModalSubjectTabs();
+        loadActiveSubjectPromptIntoTextarea();
+      } else {
+        activeModalSubject = sName;
+        renderModalSubjectTabs();
+        loadActiveSubjectPromptIntoTextarea();
+      }
+      if (addSubjectInlineBox) addSubjectInlineBox.classList.add('hidden');
+    });
+  }
+
+  if (insertQuestionVar) {
+    insertQuestionVar.addEventListener('click', () => {
+      if (subjectPromptTextarea) {
+        const start = subjectPromptTextarea.selectionStart;
+        const end = subjectPromptTextarea.selectionEnd;
+        const text = subjectPromptTextarea.value;
+        subjectPromptTextarea.value = text.substring(0, start) + '{question_text}' + text.substring(end);
+        subjectPromptTextarea.focus();
+        subjectPromptTextarea.selectionStart = subjectPromptTextarea.selectionEnd = start + 15;
+      }
+    });
+  }
+
+  if (insertOptsVar) {
+    insertOptsVar.addEventListener('click', () => {
+      if (subjectPromptTextarea) {
+        const start = subjectPromptTextarea.selectionStart;
+        const end = subjectPromptTextarea.selectionEnd;
+        const text = subjectPromptTextarea.value;
+        subjectPromptTextarea.value = text.substring(0, start) + '{opts_str}' + text.substring(end);
+        subjectPromptTextarea.focus();
+        subjectPromptTextarea.selectionStart = subjectPromptTextarea.selectionEnd = start + 10;
+      }
+    });
+  }
 
   function updateProviderUI(provider) {
     activeProvider = provider;
@@ -80,7 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (providerGeminiBtn) providerGeminiBtn.addEventListener('click', () => updateProviderUI('gemini'));
   if (providerAbacusBtn) providerAbacusBtn.addEventListener('click', () => updateProviderUI('abacus'));
 
-  // AI Modal handlers
+  // AI Settings Modal handlers
   if (aiSettingsBtn) {
     aiSettingsBtn.addEventListener('click', () => {
       activeProvider = localStorage.getItem('llm_provider') || 'gemini';
@@ -166,29 +418,10 @@ document.addEventListener('DOMContentLoaded', () => {
     parsePdfBtn.disabled = true;
   });
 
-  // API Base URL resolution (uses relative path on Vercel/http/https, fallback to 127.0.0.1 on file://)
+  // API Base URL resolution
   const API_BASE = (window.location.protocol === 'file:') 
     ? 'http://127.0.0.1:8000' 
     : '';
-
-  let selectedSubject = 'English';
-
-  const subjectEnglishBtn = document.getElementById('subjectEnglishBtn');
-  const subjectQuantsBtn = document.getElementById('subjectQuantsBtn');
-
-  if (subjectEnglishBtn && subjectQuantsBtn) {
-    subjectEnglishBtn.addEventListener('click', () => {
-      selectedSubject = 'English';
-      subjectEnglishBtn.classList.add('active');
-      subjectQuantsBtn.classList.remove('active');
-    });
-
-    subjectQuantsBtn.addEventListener('click', () => {
-      selectedSubject = 'Quants';
-      subjectQuantsBtn.classList.add('active');
-      subjectEnglishBtn.classList.remove('active');
-    });
-  }
 
   function showProgress(text, percent) {
     if (progressContainer) progressContainer.classList.remove('hidden');
@@ -212,11 +445,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const llmProvider = localStorage.getItem('llm_provider') || 'gemini';
     const abacusModel = localStorage.getItem('abacus_model') || 'gpt-4o';
 
+    const customPrompt = getSubjectPrompt(selectedSubject);
+    const useAiTopics = useAiTopicsCheckbox ? useAiTopicsCheckbox.checked : false;
+
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('subject', selectedSubject);
     formData.append('llmProvider', llmProvider);
     formData.append('model', abacusModel);
+    formData.append('useAiTopics', useAiTopics ? 'true' : 'false');
+    if (customPrompt) formData.append('customPrompt', customPrompt);
     if (apiKey) formData.append('apiKey', apiKey);
     if (abacusApiKey) formData.append('abacusApiKey', abacusApiKey);
 
@@ -247,7 +485,6 @@ document.addEventListener('DOMContentLoaded', () => {
         progressContainer.classList.add('hidden');
         if (data.questions && data.questions.length > 0) {
           questionsData = data.questions;
-          // Assign subject to questions
           questionsData.forEach(q => { if (!q.subject) q.subject = selectedSubject; });
           renderQuestions();
           workspaceSection.classList.remove('hidden');
@@ -264,7 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Full Taxonomy Definition for English and Quants
+  // Full Taxonomy Definition
   const TAXONOMY = {
     "English": {
       "VA": ["RC", "Para Completion", "Para Jumbles", "Sentence Correction", "Spellings", "Verbal Analogy"],
@@ -277,12 +514,16 @@ document.addEventListener('DOMContentLoaded', () => {
       "Algebra": ["Binomial Theorem", "Matrices & Determinants", "Algebraic identities", "Functions", "Indices & Surds", "Inequalities", "Linear/Quadratic equations", "Maxima & Minima", "Modulus", "Polynomials", "Progressions", "Sets"],
       "Geometry & Mensuration": ["Area & Perimeter", "Circles", "Coordinate Geometry", "Heights & Distances", "Lines & Angles", "Polygons", "Quadrilaterals", "Solids", "Triangles", "Trigonometry"],
       "Modern Maths": ["Binomial Theorem", "Logarithm", "Matrices & Determinants", "P & C", "Probability", "Set Theory"]
+    },
+    "LRDI": {
+      "Logical Reasoning": ["Arrangements", "Blood Relations", "Clocks & Calendars", "Coding-Decoding", "Direction Sense", "Syllogisms", "Series & Analogies", "Venn Diagrams"],
+      "Data Interpretation": ["Bar Charts", "Line Graphs", "Pie Charts", "Tables", "Caselets", "Data Sufficiency"]
     }
   };
 
   function getTopicsForSubject(subj) {
     const s = subj || selectedSubject;
-    return TAXONOMY[s] ? Object.keys(TAXONOMY[s]) : Object.keys(TAXONOMY["English"]);
+    return TAXONOMY[s] ? Object.keys(TAXONOMY[s]) : ["General Topic", "Misc"];
   }
 
   function getSubtopicsForTopic(subj, topic) {
@@ -296,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
     for (let k in subjData) {
       if (k.toLowerCase() === (topic || '').toLowerCase()) return subjData[k];
     }
-    return [Object.values(subjData)[0][0]];
+    return [Object.values(subjData)[0]?.[0] || "General Subtopic"];
   }
 
   // Render Questions Cards
@@ -313,7 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (filterQuery) {
         const matchQ = q.questionText.toLowerCase().includes(filterQuery);
         const matchHint = q.hint.toLowerCase().includes(filterQuery);
-        const matchTopic = q.topic.toLowerCase().includes(filterQuery);
+        const matchTopic = (q.topic || '').toLowerCase().includes(filterQuery);
         const matchOpts = q.options.some(o => o.text.toLowerCase().includes(filterQuery));
         if (!matchQ && !matchHint && !matchTopic && !matchOpts) return;
       }
@@ -336,6 +577,12 @@ document.addEventListener('DOMContentLoaded', () => {
             </button>
           </div>
         `;
+      });
+
+      // Build Subject Dropdown Options
+      let subjectSelectOptionsHtml = '';
+      availableSubjects.forEach(sub => {
+        subjectSelectOptionsHtml += `<option value="${sub}" ${sub === q.subject ? 'selected' : ''}>${sub}</option>`;
       });
 
       // Build Topic Options based on Question Subject
@@ -363,8 +610,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="question-index"><i class="fa-solid fa-circle-question"></i> Question ${qIndex + 1}</span>
           <div class="card-meta-inputs">
             <select class="meta-select q-subject-select" data-qindex="${qIndex}" title="Subject">
-              <option value="English" ${q.subject === 'English' ? 'selected' : ''}>English</option>
-              <option value="Quants" ${q.subject === 'Quants' ? 'selected' : ''}>Quants</option>
+              ${subjectSelectOptionsHtml}
             </select>
             <select class="meta-select q-topic-select" data-qindex="${qIndex}" title="Topic">
               ${topicSelectOptionsHtml}
@@ -410,7 +656,6 @@ document.addEventListener('DOMContentLoaded', () => {
       questionsList.appendChild(card);
     });
 
-    // Update KaTeX math previews & code view
     renderMathPreviews();
     syncJsonCodeDisplay();
     attachCardEventListeners();
@@ -441,7 +686,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function attachCardEventListeners() {
-    // Subject Select Change
     document.querySelectorAll('.q-subject-select').forEach(el => {
       el.addEventListener('change', (e) => {
         const qIndex = parseInt(e.target.dataset.qindex);
@@ -455,7 +699,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Question Text change
     document.querySelectorAll('.q-text-input').forEach(el => {
       el.addEventListener('input', (e) => {
         const qIndex = parseInt(e.target.dataset.qindex);
@@ -465,7 +708,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Hint change
     document.querySelectorAll('.q-hint-input').forEach(el => {
       el.addEventListener('input', (e) => {
         const qIndex = parseInt(e.target.dataset.qindex);
@@ -474,7 +716,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Topic & Subtopic Select Change
     document.querySelectorAll('.q-topic-select').forEach(el => {
       el.addEventListener('change', (e) => {
         const qIndex = parseInt(e.target.dataset.qindex);
@@ -494,7 +735,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Option text change
     document.querySelectorAll('.option-input').forEach(el => {
       el.addEventListener('input', (e) => {
         const qIndex = parseInt(e.target.dataset.qindex);
@@ -504,7 +744,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Correct Option Radio Select
     document.querySelectorAll('.radio-custom').forEach(el => {
       el.addEventListener('change', (e) => {
         const qIndex = parseInt(e.target.dataset.qindex);
@@ -516,7 +755,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Single AI Hint Generation Click
     document.querySelectorAll('.generate-single-ai-hint-btn').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         const qIndex = parseInt(e.currentTarget.dataset.qindex);
@@ -524,7 +762,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Delete Question
     document.querySelectorAll('.delete-q-btn').forEach(el => {
       el.addEventListener('click', (e) => {
         const qIndex = parseInt(e.currentTarget.dataset.qindex);
@@ -533,7 +770,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Delete Option
     document.querySelectorAll('.delete-opt-btn').forEach(el => {
       el.addEventListener('click', (e) => {
         const qIndex = parseInt(e.currentTarget.dataset.qindex);
@@ -543,7 +779,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Add Option
     document.querySelectorAll('.add-opt-btn').forEach(el => {
       el.addEventListener('click', (e) => {
         const qIndex = parseInt(e.currentTarget.dataset.qindex);
@@ -566,6 +801,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const llmProvider = localStorage.getItem('llm_provider') || 'gemini';
     const abacusModel = localStorage.getItem('abacus_model') || 'gpt-4o';
     
+    const customPrompt = getSubjectPrompt(q.subject || selectedSubject || 'English');
+
     const origHtml = btnElement ? btnElement.innerHTML : '';
     if (btnElement) {
       btnElement.disabled = true;
@@ -583,7 +820,8 @@ document.addEventListener('DOMContentLoaded', () => {
           abacusApiKey: abacusApiKey,
           llmProvider: llmProvider,
           model: abacusModel,
-          subject: q.subject || selectedSubject || 'English'
+          subject: q.subject || selectedSubject || 'English',
+          customPrompt: customPrompt
         })
       });
 
@@ -643,6 +881,7 @@ document.addEventListener('DOMContentLoaded', () => {
     questionsData.push({
       questionText: "New Question Text $x = 0$",
       hint: "Hint for new question",
+      subject: selectedSubject || "English",
       topic: "Vocabulary",
       subtopic: "Definition",
       options: [
@@ -719,11 +958,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Dark / Light Theme Toggle
-  themeToggleBtn.addEventListener('click', () => {
-    document.body.classList.toggle('light-theme');
-    const isLight = document.body.classList.contains('light-theme');
-    themeToggleBtn.innerHTML = isLight ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
-  });
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', () => {
+      document.body.classList.toggle('light-theme');
+      const isLight = document.body.classList.contains('light-theme');
+      themeToggleBtn.innerHTML = isLight ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
+    });
+  }
 
   function cleanFormatting(str) {
     if (!str) return '';
@@ -740,4 +982,3 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
 });
-

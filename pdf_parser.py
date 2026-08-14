@@ -176,106 +176,157 @@ OFFICIAL_TAXONOMY = {
             "Probability",
             "Set Theory"
         ]
+    },
+    "LRDI": {
+        "Logical Reasoning": [
+            "Arrangements",
+            "Blood Relations",
+            "Clocks & Calendars",
+            "Coding-Decoding",
+            "Direction Sense",
+            "Syllogisms",
+            "Series & Analogies",
+            "Venn Diagrams"
+        ],
+        "Data Interpretation": [
+            "Bar Charts",
+            "Line Graphs",
+            "Pie Charts",
+            "Tables",
+            "Caselets",
+            "Data Sufficiency"
+        ]
     }
 }
 
 ENGLISH_PATTERNS = [
     # Vocabulary
-    ("Vocabulary", "Definition", [r'meaning of', r'what does .* mean', r'definition of', r'word .* means', r'describes something']),
-    ("Vocabulary", "Idioms & Phrases", [r'idiom', r'phrasal verb', r'meaning/phrasal verb', r'went by the book', r'blow the whistle', r'devil\'s advocate', r'spill the beans', r'phrase', r'proverb']),
-    ("Vocabulary", "Synonyms", [r'synonym', r'similar in meaning', r'closest in meaning', r'same meaning', r'nearest in meaning']),
-    ("Vocabulary", "Antonyms", [r'antonym', r'opposite in meaning', r'contrary in meaning', r'furthest in meaning', r'reverse in meaning']),
-    ("Vocabulary", "Spellings", [r'correctly spelt', r'misspelt', r'spelling', r'correct spelling', r'incorrectly spelt']),
-    
+    ("Vocabulary", "Idioms & Phrases", [(r'idiom', 5), (r'phrasal verb', 5), (r'phrase', 3), (r'proverb', 4), (r'went by the book', 5), (r'spill the beans', 5), (r'burn the midnight oil', 5), (r'kick the bucket', 5), (r'apple of discord', 5)]),
+    ("Vocabulary", "Synonyms", [(r'synonym', 5), (r'similar in meaning', 5), (r'closest in meaning', 5), (r'same meaning', 4), (r'nearest in meaning', 5)]),
+    ("Vocabulary", "Antonyms", [(r'antonym', 5), (r'opposite in meaning', 5), (r'contrary in meaning', 5), (r'furthest in meaning', 5), (r'reverse in meaning', 4)]),
+    ("Vocabulary", "Spellings", [(r'correctly spelt', 5), (r'misspelt', 5), (r'spelling', 4), (r'correct spelling', 5), (r'incorrectly spelt', 5)]),
+    ("Vocabulary", "Definition", [(r'meaning of', 3), (r'what does .* mean', 3), (r'definition of', 4), (r'word .* means', 3), (r'refers to', 2)]),
+
     # Grammar
-    ("Grammar", "Active & Passive Voice", [r'active voice', r'passive voice', r'change the voice', r'convert into passive', r'convert into active']),
-    ("Grammar", "Direct & Indirect Speech", [r'direct speech', r'indirect speech', r'reported speech', r'convert into indirect', r'said that']),
-    ("Grammar", "Error", [r'spot the error', r'error spotting', r'find the error', r'grammatically incorrect', r'error in part']),
-    ("Grammar", "Punctuations", [r'punctuation', r'comma', r'semicolon', r'apostrophe', r'properly punctuated', r'pantuations']),
-    ("Grammar", "Parts of Speech", [r'parts of speech', r'noun', r'verb', r'adjective', r'adverb', r'preposition', r'conjunction', r'pronoun']),
-    ("Grammar", "Subject–Verb Agreement", [r'subject-verb', r'subject verb agreement', r'singular verb', r'plural verb', r'agrees with subject']),
-    
+    ("Grammar", "Active & Passive Voice", [(r'active voice', 5), (r'passive voice', 5), (r'change the voice', 5), (r'convert into passive', 5), (r'convert into active', 5)]),
+    ("Grammar", "Direct & Indirect Speech", [(r'direct speech', 5), (r'indirect speech', 5), (r'reported speech', 5), (r'convert into indirect', 5), (r'said that', 3)]),
+    ("Grammar", "Error", [(r'spot the error', 5), (r'error spotting', 5), (r'find the error', 5), (r'grammatically incorrect', 5), (r'error in part', 5), (r'which part has an error', 5)]),
+    ("Grammar", "Punctuations", [(r'punctuation', 5), (r'comma', 3), (r'semicolon', 4), (r'apostrophe', 4), (r'properly punctuated', 5)]),
+    ("Grammar", "Parts of Speech", [(r'parts of speech', 5), (r'noun', 3), (r'verb', 3), (r'adjective', 3), (r'adverb', 3), (r'preposition', 3), (r'conjunction', 3), (r'pronoun', 3)]),
+    ("Grammar", "Subject–Verb Agreement", [(r'subject-verb', 5), (r'subject verb agreement', 5), (r'singular verb', 4), (r'plural verb', 4), (r'agrees with subject', 5)]),
+
     # VA
-    ("VA", "RC", [r'passage', r'according to the passage', r'author implies', r'main idea', r'reading comprehension', r'passage below']),
-    ("VA", "Para Completion", [r'complete the paragraph', r'para completion', r'completes the paragraph', r'sentence fits best']),
-    ("VA", "Para Jumbles", [r'para jumble', r'rearrange', r'jumbled', r'proper sequence', r'logical order', r'sentence A, B, C']),
-    ("VA", "Sentence Correction", [r'sentence correction', r'phrase replacement', r'sentence improvement', r'replace the underlined']),
-    ("VA", "Spellings", [r'spelling', r'spelt']),
-    ("VA", "Verbal Analogy", [r'analogy', r'is to', r'analogous', r'verbal analogy'])
+    ("VA", "RC", [(r'passage', 4), (r'according to the passage', 5), (r'author implies', 5), (r'main idea of the passage', 5), (r'reading comprehension', 5), (r'passage below', 4), (r'author\'s tone', 5), (r'central theme', 5)]),
+    ("VA", "Para Completion", [(r'complete the paragraph', 5), (r'para completion', 5), (r'completes the paragraph', 5), (r'sentence fits best', 4)]),
+    ("VA", "Para Jumbles", [(r'para jumble', 5), (r'rearrange', 5), (r'jumbled', 5), (r'proper sequence', 5), (r'logical order', 4), (r'sentence A, B, C', 5), (r'1, 2, 3, 4', 2)]),
+    ("VA", "Sentence Correction", [(r'sentence correction', 5), (r'phrase replacement', 5), (r'sentence improvement', 5), (r'replace the underlined', 5)]),
+    ("VA", "Verbal Analogy", [(r'analogy', 5), (r'is to .* as', 5), (r'analogous', 5), (r'verbal analogy', 5)])
 ]
 
 QUANTS_PATTERNS = [
     # Arithmetic
-    ("Arithmetic", "Averages", [r'average', r'mean', r'weighted average']),
-    ("Arithmetic", "Mixtures & Alligation", [r'mixture', r'alligation', r'solution contains', r'milk and water']),
-    ("Arithmetic", "Percentages", [r'percent', r'percentage', r'increase by', r'decrease by']),
-    ("Arithmetic", "Profit & Loss", [r'cost price', r'selling price', r'profit', r'loss', r'discount', r'marked price']),
-    ("Arithmetic", "Ratio & Proportion", [r'ratio', r'proportion', r'proportional', r'divided in the ratio']),
-    ("Arithmetic", "SI/CI", [r'simple interest', r'compound interest', r'principal', r'rate of interest', r'annually']),
-    ("Arithmetic", "Time & Work", [r'time and work', r'efficiency', r'pipes and cistern', r'days to complete']),
-    ("Arithmetic", "Time–Speed–Distance", [r'speed', r'distance', r'train', r'relative speed', r'boat and stream', r'km/h', r'm/s']),
+    ("Arithmetic", "Averages", [(r'average', 4), (r'mean age', 4), (r'weighted average', 5), (r'average score', 4)]),
+    ("Arithmetic", "Mixtures & Alligation", [(r'mixture', 5), (r'alligation', 5), (r'solution contains', 4), (r'milk and water', 5), (r'replacement of liquid', 5)]),
+    ("Arithmetic", "Percentages", [(r'percent', 4), (r'percentage', 4), (r'increase by \d+%', 5), (r'decrease by \d+%', 5), (r'% of', 3)]),
+    ("Arithmetic", "Profit & Loss", [(r'cost price', 5), (r'selling price', 5), (r'profit', 4), (r'loss', 4), (r'discount', 4), (r'marked price', 5), (r'gain percent', 5)]),
+    ("Arithmetic", "Ratio & Proportion", [(r'ratio', 4), (r'proportion', 4), (r'proportional', 4), (r'divided in the ratio', 5), (r'a : b', 4)]),
+    ("Arithmetic", "SI/CI", [(r'simple interest', 5), (r'compound interest', 5), (r'principal amount', 5), (r'rate of interest', 5), (r'compounded annually', 5)]),
+    ("Arithmetic", "Time & Work", [(r'time and work', 5), (r'efficiency', 3), (r'pipes and cistern', 5), (r'days to complete', 4), (r'can finish a job in', 5)]),
+    ("Arithmetic", "Time–Speed–Distance", [(r'speed', 4), (r'distance', 3), (r'train', 4), (r'relative speed', 5), (r'boat and stream', 5), (r'km/h', 4), (r'm/s', 4), (r'average speed', 5)]),
 
     # Number System
-    ("Number System", "Digit properties", [r'digit', r'unit digit', r'ten\'s digit', r'two-digit number']),
-    ("Number System", "Divisibility rules", [r'divisible', r'divisibility', r'multiple of']),
-    ("Number System", "Factorials", [r'factorial', r'n!']),
-    ("Number System", "Factorization", [r'factorization', r'prime factor']),
-    ("Number System", "Factors/Multiples", [r'factors', r'number of factors', r'multiples']),
-    ("Number System", "HCF/LCM", [r'hcf', r'lcm', r'greatest common divisor']),
-    ("Number System", "Integral Solution", [r'integral solution', r'integer solutions', r'positive integer']),
-    ("Number System", "Remainders", [r'remainder', r'remains', r'divided by']),
-    ("Number System", "Unit digits", [r'unit digit', r'last digit']),
-    ("Number System", "Miscellaneous", [r'number system', r'real number', r'irrational']),
+    ("Number System", "Digit properties", [(r'unit digit', 5), (r'ten\'s digit', 5), (r'two-digit number', 5), (r'sum of digits', 4)]),
+    ("Number System", "Divisibility rules", [(r'divisible by', 5), (r'divisibility', 5), (r'multiple of', 3)]),
+    ("Number System", "Factorials", [(r'factorial', 5), (r'\bn!\b', 5), (r'number of zeroes at the end', 5)]),
+    ("Number System", "Factorization", [(r'factorization', 5), (r'prime factor', 5), (r'prime factorization', 5)]),
+    ("Number System", "Factors/Multiples", [(r'number of factors', 5), (r'sum of factors', 5), (r'number of divisors', 5)]),
+    ("Number System", "HCF/LCM", [(r'hcf', 5), (r'lcm', 5), (r'greatest common divisor', 5), (r'highest common factor', 5)]),
+    ("Number System", "Integral Solution", [(r'integral solution', 5), (r'integer solutions', 5), (r'positive integer solutions', 5)]),
+    ("Number System", "Remainders", [(r'remainder', 5), (r'remains when divided', 5), (r'remainder theorem', 5)]),
+    ("Number System", "Unit digits", [(r'unit digit of', 5), (r'last digit of', 5)]),
+    ("Number System", "Miscellaneous", [(r'number system', 4), (r'real number', 3), (r'irrational number', 4)]),
 
     # Algebra
-    ("Algebra", "Binomial Theorem", [r'binomial', r'expansion of', r'coefficient of']),
-    ("Algebra", "Matrices & Determinants", [r'matrix', r'matrices', r'determinant', r'eigen']),
-    ("Algebra", "Algebraic identities", [r'identity', r'a\^2 \+ b\^2', r'algebraic']),
-    ("Algebra", "Functions", [r'function', r'f\(x\)', r'domain', r'range of f']),
-    ("Algebra", "Indices & Surds", [r'indices', r'surds', r'exponent', r'power']),
-    ("Algebra", "Inequalities", [r'inequality', r'greater than', r'less than', r'linear inequality']),
-    ("Algebra", "Linear/Quadratic equations", [r'quadratic', r'roots of', r'equation', r'linear equation']),
-    ("Algebra", "Maxima & Minima", [r'maxima', r'minima', r'maximum value', r'minimum value']),
-    ("Algebra", "Modulus", [r'modulus', r'\|x\|', r'absolute value']),
-    ("Algebra", "Polynomials", [r'polynomial', r'degree of polynomial']),
-    ("Algebra", "Progressions", [r'progression', r'arithmetic progression', r'geometric progression', r'ap', r'gp', r'hp']),
-    ("Algebra", "Sets", [r'set', r'subset', r'union', r'intersection']),
+    ("Algebra", "Binomial Theorem", [(r'binomial', 5), (r'expansion of', 4), (r'coefficient of x\^', 5)]),
+    ("Algebra", "Matrices & Determinants", [(r'matrix', 5), (r'matrices', 5), (r'determinant', 5), (r'eigenvalue', 5)]),
+    ("Algebra", "Algebraic identities", [(r'algebraic', 4), (r'a\^2\s*\+\s*b\^2', 5), (r'x\s*\+\s*1/x', 5)]),
+    ("Algebra", "Functions", [(r'f\(x\)', 5), (r'domain of', 4), (r'range of f', 5), (r'composite function', 5), (r'f\(f\(x\)\)', 5)]),
+    ("Algebra", "Indices & Surds", [(r'indices', 5), (r'surds', 5), (r'exponent', 4), (r'power of \d+', 3)]),
+    ("Algebra", "Inequalities", [(r'inequality', 5), (r'inequalities', 5), (r'greater than or equal to', 4), (r'less than or equal to', 4)]),
+    ("Algebra", "Linear/Quadratic equations", [(r'quadratic equation', 5), (r'roots of the equation', 5), (r'discriminant', 5), (r'linear equation', 4)]),
+    ("Algebra", "Maxima & Minima", [(r'maxima', 5), (r'minima', 5), (r'maximum value', 5), (r'minimum value', 5)]),
+    ("Algebra", "Modulus", [(r'modulus', 5), (r'\|x\|', 5), (r'absolute value', 5)]),
+    ("Algebra", "Polynomials", [(r'polynomial', 5), (r'degree of polynomial', 5), (r'cubic polynomial', 5)]),
+    ("Algebra", "Progressions", [(r'arithmetic progression', 5), (r'geometric progression', 5), (r'harmonic progression', 5), (r'\bap\b', 3), (r'\bgp\b', 3), (r'sum of n terms', 5)]),
+    ("Algebra", "Sets", [(r'subset', 5), (r'union of sets', 5), (r'intersection of sets', 5)]),
 
     # Geometry & Mensuration
-    ("Geometry & Mensuration", "Area & Perimeter", [r'area', r'perimeter', r'circumference']),
-    ("Geometry & Mensuration", "Circles", [r'circle', r'radius', r'diameter', r'chord', r'tangent']),
-    ("Geometry & Mensuration", "Coordinate Geometry", [r'coordinate', r'slope', r'intercept', r'distance formula', r'locus']),
-    ("Geometry & Mensuration", "Heights & Distances", [r'angle of elevation', r'angle of depression', r'height', r'tower']),
-    ("Geometry & Mensuration", "Lines & Angles", [r'parallel lines', r'transversal', r'angle', r'degree']),
-    ("Geometry & Mensuration", "Polygons", [r'polygon', r'hexagon', r'pentagon', r'diagonals of polygon']),
-    ("Geometry & Mensuration", "Quadrilaterals", [r'rectangle', r'square', r'parallelogram', r'rhombus', r'trapezium', r'quadrilateral']),
-    ("Geometry & Mensuration", "Solids", [r'sphere', r'cylinder', r'cone', r'cube', r'cuboid', r'volume', r'surface area']),
-    ("Geometry & Mensuration", "Triangles", [r'triangle', r'hypotenuse', r'isosceles', r'equilateral', r'pythagoras']),
-    ("Geometry & Mensuration", "Trigonometry", [r'sin', r'cos', r'tan', r'cot', r'sec', r'cosec', r'trigonometric']),
+    ("Geometry & Mensuration", "Area & Perimeter", [(r'area of', 4), (r'perimeter', 5), (r'circumference', 5)]),
+    ("Geometry & Mensuration", "Circles", [(r'circle', 5), (r'radius', 4), (r'diameter', 4), (r'chord', 5), (r'tangent', 5), (r'secant', 5)]),
+    ("Geometry & Mensuration", "Coordinate Geometry", [(r'coordinate', 5), (r'slope of line', 5), (r'y-intercept', 5), (r'distance formula', 5), (r'locus', 5)]),
+    ("Geometry & Mensuration", "Heights & Distances", [(r'angle of elevation', 5), (r'angle of depression', 5), (r'height of tower', 5)]),
+    ("Geometry & Mensuration", "Lines & Angles", [(r'parallel lines', 5), (r'transversal', 5), (r'alternate interior angle', 5)]),
+    ("Geometry & Mensuration", "Polygons", [(r'polygon', 5), (r'hexagon', 5), (r'pentagon', 5), (r'diagonals of polygon', 5)]),
+    ("Geometry & Mensuration", "Quadrilaterals", [(r'rectangle', 4), (r'square', 3), (r'parallelogram', 5), (r'rhombus', 5), (r'trapezium', 5), (r'quadrilateral', 5)]),
+    ("Geometry & Mensuration", "Solids", [(r'sphere', 5), (r'cylinder', 5), (r'cone', 5), (r'cube', 4), (r'cuboid', 5), (r'volume of', 4), (r'surface area', 5)]),
+    ("Geometry & Mensuration", "Triangles", [(r'triangle', 5), (r'hypotenuse', 5), (r'isosceles', 5), (r'equilateral', 5), (r'pythagoras', 5), (r'inradius', 5), (r'circumradius', 5)]),
+    ("Geometry & Mensuration", "Trigonometry", [(r'sin', 4), (r'cos', 4), (r'tan', 4), (r'cot', 4), (r'sec', 4), (r'cosec', 4), (r'trigonometric identity', 5)]),
 
     # Modern Maths
-    ("Modern Maths", "Logarithm", [r'logarithm', r'log', r'log_']),
-    ("Modern Maths", "P & C", [r'permutation', r'combination', r'ncr', r'npr', r'arranged', r'selection']),
-    ("Modern Maths", "Probability", [r'probability', r'random', r'dice', r'coins', r'cards', r'favourable outcomes']),
-    ("Modern Maths", "Set Theory", [r'venn diagram', r'set theory', r'universal set'])
+    ("Modern Maths", "Logarithm", [(r'logarithm', 5), (r'\blog\b', 4), (r'log_\d+', 5)]),
+    ("Modern Maths", "P & C", [(r'permutation', 5), (r'combination', 5), (r'\bncr\b', 5), (r'\bnpr\b', 5), (r'arranged in a row', 5), (r'ways of selecting', 5)]),
+    ("Modern Maths", "Probability", [(r'probability', 5), (r'randomly selected', 5), (r'fair dice', 5), (r'pack of cards', 5), (r'favourable outcomes', 5)]),
+    ("Modern Maths", "Set Theory", [(r'venn diagram', 5), (r'set theory', 5), (r'universal set', 5)])
+]
+
+LRDI_PATTERNS = [
+    ("Logical Reasoning", "Arrangements", [(r'seating arrangement', 5), (r'circular table', 5), (r'facing north', 5), (r'linear arrangement', 5), (r'sitting in a row', 5)]),
+    ("Logical Reasoning", "Blood Relations", [(r'blood relation', 5), (r'brother of', 4), (r'sister of', 4), (r'mother of', 4), (r'father of', 4), (r'paternal uncle', 5)]),
+    ("Logical Reasoning", "Clocks & Calendars", [(r'clock', 5), (r'calendar', 5), (r'day of the week', 4), (r'hands of a clock', 5), (r'leap year', 5)]),
+    ("Logical Reasoning", "Coding-Decoding", [(r'coding', 5), (r'decoding', 5), (r'coded as', 5), (r'written as', 3), (r'cipher', 5)]),
+    ("Logical Reasoning", "Direction Sense", [(r'direction', 4), (r'walks north', 5), (r'turns right', 4), (r'turns left', 4), (r'facing south', 5)]),
+    ("Logical Reasoning", "Syllogisms", [(r'syllogism', 5), (r'all .* are .*', 4), (r'some .* are not', 4), (r'no .* is a', 4), (r'conclusion follows', 5)]),
+    ("Logical Reasoning", "Series & Analogies", [(r'number series', 5), (r'missing number', 5), (r'find the next number', 5), (r'pattern', 3)]),
+    ("Logical Reasoning", "Venn Diagrams", [(r'venn diagram', 5), (r'represented by circle', 4), (r'overlapping regions', 5)]),
+
+    ("Data Interpretation", "Bar Charts", [(r'bar chart', 5), (r'bar graph', 5), (r'horizontal bars', 5)]),
+    ("Data Interpretation", "Line Graphs", [(r'line graph', 5), (r'line chart', 5), (r'trend over years', 4)]),
+    ("Data Interpretation", "Pie Charts", [(r'pie chart', 5), (r'degrees in pie chart', 5), (r'sector angle', 5)]),
+    ("Data Interpretation", "Tables", [(r'table shows', 5), (r'refer to the table', 5), (r'tabular data', 5)]),
+    ("Data Interpretation", "Caselets", [(r'caselet', 5), (r'passage based di', 5), (r'data given below', 3)]),
+    ("Data Interpretation", "Data Sufficiency", [(r'data sufficiency', 5), (r'statement 1 alone', 5), (r'statement 2 alone', 5), (r'is sufficient to answer', 5)])
 ]
 
 def auto_classify_topic_subtopic(question_text: str, hint_text: str = "", subject: str = "English"):
-    """Classifies a question into the taxonomy automatically based on chosen subject."""
-    combined = (question_text + " " + hint_text).lower()
+    """Classifies a question into topic/subtopic using a weighted keyword scoring algorithm (0 API Cost)."""
+    combined = (question_text + " " + (hint_text or "")).lower()
     
-    is_quants = (subject or "").strip().lower() == "quants"
-    patterns = QUANTS_PATTERNS if is_quants else ENGLISH_PATTERNS
-    
-    for topic, subtopic, pats in patterns:
-        for pat in pats:
-            if re.search(pat, combined):
-                return topic, subtopic
-                
-    if is_quants:
-        return "Arithmetic", "Averages"
+    subj_clean = (subject or "").strip().lower()
+    if "quant" in subj_clean or "math" in subj_clean:
+        patterns = QUANTS_PATTERNS
+        default_topic, default_subtopic = "Arithmetic", "Percentages"
+    elif "lr" in subj_clean or "di" in subj_clean or "reasoning" in subj_clean:
+        patterns = LRDI_PATTERNS
+        default_topic, default_subtopic = "Logical Reasoning", "Arrangements"
     else:
-        return "Vocabulary", "Definition"
+        patterns = ENGLISH_PATTERNS
+        default_topic, default_subtopic = "VA", "RC"
+    
+    best_score = 0
+    best_candidate = (default_topic, default_subtopic)
+
+    for topic, subtopic, pats in patterns:
+        score = 0
+        for pat, weight in pats:
+            matches = len(re.findall(pat, combined))
+            if matches > 0:
+                score += weight * min(matches, 3)
+        
+        if score > best_score:
+            best_score = score
+            best_candidate = (topic, subtopic)
+            
+    return best_candidate
 
 def parse_with_abacus_fallback(raw_text: str, subject: str = "English", abacus_key: str = None, model: str = "gpt-4o") -> list:
     """Uses Abacus.AI API to extract questions in chunks when regex parsing finds 0 questions."""
@@ -502,6 +553,78 @@ Document Text:
 
     return all_parsed_questions
 
+def classify_topics_with_ai(questions: list, subject: str = "English", api_key: str = None, abacus_key: str = None, provider: str = "gemini", model: str = "gpt-4o") -> list:
+    """Uses LLM to categorize topics & subtopics for parsed questions when use_ai_topics is enabled."""
+    if not questions:
+        return questions
+        
+    key = (api_key or os.environ.get("GEMINI_API_KEY", "")).strip()
+    ab_key = (abacus_key or os.environ.get("ABACUS_API_KEY", "")).strip()
+    
+    if not key and not ab_key:
+        return questions
+
+    tax = OFFICIAL_TAXONOMY.get(subject, OFFICIAL_TAXONOMY.get("English", {}))
+    tax_str = json.dumps(tax, indent=2)
+
+    import requests
+    batch_size = 15
+    for i in range(0, len(questions), batch_size):
+        batch = questions[i:i+batch_size]
+        q_summary = []
+        for idx, q in enumerate(batch):
+            opts = ", ".join([f"{chr(65+j)}: {o.get('text','')}" for j, o in enumerate(q.get('options', []))])
+            q_summary.append(f"Q{idx+1}: {q.get('questionText','')[:300]} (Options: {opts})")
+        
+        prompt = f"""Classify each of the following questions into the exact topic and subtopic from this official taxonomy:
+Taxonomy JSON:
+{tax_str}
+
+Subject: {subject}
+
+Questions:
+""" + "\n\n".join(q_summary) + """
+
+Return ONLY a valid JSON array of objects with the exact classification:
+[
+  {{"qIndex": 1, "topic": "TopicName", "subtopic": "SubtopicName"}}
+]"""
+
+        try:
+            if provider.lower() == "abacus" or (ab_key and not key):
+                headers = {"Authorization": f"Bearer {ab_key}", "Content-Type": "application/json"}
+                ep = "https://routellm.abacus.ai/v1/chat/completions"
+                res = requests.post(ep, json={"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}, headers=headers, timeout=20)
+                if res.status_code == 200:
+                    txt = res.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+                    match = re.search(r'\[.*\]', txt, re.DOTALL)
+                    if match:
+                        cls_list = json.loads(match.group(0))
+                        for item in cls_list:
+                            q_idx = item.get("qIndex", 0) - 1
+                            if 0 <= q_idx < len(batch):
+                                if item.get("topic"): batch[q_idx]["topic"] = item["topic"]
+                                if item.get("subtopic"): batch[q_idx]["subtopic"] = item["subtopic"]
+            elif key:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
+                res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1}}, headers={"Content-Type": "application/json"}, timeout=20)
+                if res.status_code == 200:
+                    candidates = res.json().get('candidates', [])
+                    if candidates:
+                        txt = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                        match = re.search(r'\[.*\]', txt, re.DOTALL)
+                        if match:
+                            cls_list = json.loads(match.group(0))
+                            for item in cls_list:
+                                q_idx = item.get("qIndex", 0) - 1
+                                if 0 <= q_idx < len(batch):
+                                    if item.get("topic"): batch[q_idx]["topic"] = item["topic"]
+                                    if item.get("subtopic"): batch[q_idx]["subtopic"] = item["subtopic"]
+        except Exception as e:
+            print(f"AI Topic classification batch warning: {e}")
+
+    return questions
+
 def parse_pdf_questions(
     file_path: str,
     subject: str = "English",
@@ -510,7 +633,9 @@ def parse_pdf_questions(
     api_key: str = None,
     abacus_key: str = None,
     provider: str = "gemini",
-    model: str = "gpt-4o"
+    model: str = "gpt-4o",
+    use_ai_topics: bool = False,
+    custom_prompt: str = None
 ) -> list:
     """
     Parses a question paper PDF or DOCX into JSON.
@@ -654,8 +779,10 @@ def parse_pdf_questions(
                 "options": formatted_options
             })
 
-    # If regex parser found questions, return them immediately! (0 API tokens used)
+    # If regex parser found questions:
     if parsed_questions and len(parsed_questions) > 0:
+        if use_ai_topics:
+            parsed_questions = classify_topics_with_ai(parsed_questions, subject=subject, api_key=api_key, abacus_key=abacus_key, provider=provider, model=model)
         return parsed_questions
 
     # =========================================================================
@@ -665,15 +792,21 @@ def parse_pdf_questions(
     if provider_clean == "abacus" or (abacus_key and not api_key):
         ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
         if ai_questions:
+            if use_ai_topics:
+                ai_questions = classify_topics_with_ai(ai_questions, subject=subject, api_key=api_key, abacus_key=abacus_key, provider=provider, model=model)
             return ai_questions
 
     ai_questions = parse_with_gemini_fallback(text, subject=subject, api_key=api_key)
     if ai_questions:
+        if use_ai_topics:
+            ai_questions = classify_topics_with_ai(ai_questions, subject=subject, api_key=api_key, abacus_key=abacus_key, provider=provider, model=model)
         return ai_questions
 
     if abacus_key:
         ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
         if ai_questions:
+            if use_ai_topics:
+                ai_questions = classify_topics_with_ai(ai_questions, subject=subject, api_key=api_key, abacus_key=abacus_key, provider=provider, model=model)
             return ai_questions
 
     return []
