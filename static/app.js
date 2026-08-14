@@ -135,7 +135,7 @@ Options:
   };
 
   // Saved Custom Subjects and Prompts State
-  let availableSubjects = JSON.parse(localStorage.getItem('custom_subjects') || '["English", "Quants", "LRDI"]');
+  let availableSubjects = JSON.parse(localStorage.getItem('custom_subjects') || '["English", "Quants"]');
   let subjectPrompts = JSON.parse(localStorage.getItem('subject_prompts') || '{}');
 
   // Fill default prompts if missing
