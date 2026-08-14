@@ -634,9 +634,14 @@ Options:
           <div class="hint-wrapper">
             <div class="hint-header">
               <label><i class="fa-solid fa-lightbulb"></i> Hint / Explanation</label>
-              <button class="ai-gen-btn generate-single-ai-hint-btn" data-qindex="${qIndex}" title="Generate step-by-step explanation using Gemini AI">
-                <i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Hint
-              </button>
+              <div style="display: flex; gap: 0.4rem; align-items: center;">
+                <button class="btn btn-sm btn-outline copy-hint-btn" data-qindex="${qIndex}" title="Copy hint text to clipboard">
+                  <i class="fa-regular fa-copy"></i> Copy Hint
+                </button>
+                <button class="ai-gen-btn generate-single-ai-hint-btn" data-qindex="${qIndex}" title="Generate step-by-step explanation using Gemini AI">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Hint
+                </button>
+              </div>
             </div>
             <textarea class="q-hint-input" rows="5" data-qindex="${qIndex}">${escapeHtml(q.hint)}</textarea>
           </div>
@@ -752,6 +757,25 @@ Options:
           opt.isCorrect = (idx === optIndex);
         });
         renderQuestions();
+      });
+    });
+
+    document.querySelectorAll('.copy-hint-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const qIndex = parseInt(e.currentTarget.dataset.qindex);
+        const hintText = questionsData[qIndex] ? questionsData[qIndex].hint : '';
+        if (!hintText || !hintText.trim()) {
+          alert('Hint text is empty!');
+          return;
+        }
+        navigator.clipboard.writeText(hintText).then(() => {
+          const btnEl = e.currentTarget;
+          const origHtml = btnEl.innerHTML;
+          btnEl.innerHTML = '<i class="fa-solid fa-check" style="color: #10b981;"></i> Copied!';
+          setTimeout(() => btnEl.innerHTML = origHtml, 2000);
+        }).catch(err => {
+          alert('Failed to copy hint: ' + err);
+        });
       });
     });
 
