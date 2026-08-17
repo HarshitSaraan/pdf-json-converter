@@ -329,12 +329,15 @@ def auto_classify_topic_subtopic(question_text: str, hint_text: str = "", subjec
     return best_candidate
 
 def parse_with_abacus_fallback(raw_text: str, subject: str = "English", abacus_key: str = None, model: str = "gpt-4o") -> list:
-    """Uses Abacus.AI API to extract questions in chunks when regex parsing finds 0 questions."""
+    """Uses Abacus.AI API to extract questions, options, hints, and topics from document text in chunks."""
     key = abacus_key if abacus_key and abacus_key.strip() else os.environ.get("ABACUS_API_KEY", "")
     if not key or not key.strip():
         return []
     
     import requests
+
+    tax = OFFICIAL_TAXONOMY.get(subject, OFFICIAL_TAXONOMY.get("English", {}))
+    tax_str = json.dumps(tax, indent=2)
 
     # Split text into chunks of ~5000 chars to avoid max_token output truncation
     chunk_size = 5000
@@ -356,18 +359,26 @@ def parse_with_abacus_fallback(raw_text: str, subject: str = "English", abacus_k
     all_parsed_questions = []
 
     for chunk in chunks:
-        prompt = f"""You are an expert academic document parser. Extract all multiple choice questions from the given document snippet into a clean JSON array.
+        prompt = f"""You are an expert academic document parser and tutor. Extract all multiple choice questions from the given document snippet into a clean JSON array.
 
-Return ONLY a valid JSON array of objects with this structure:
+For each question:
+1. Extract the full questionText (format mathematical symbols using inline LaTeX $ ... $).
+2. Extract all options into an array of objects: {{"text": "...", "isCorrect": true/false}}. Identify the correct option if an answer key or solution is present.
+3. Extract or generate a clear step-by-step hint/explanation for the question in the "hint" field.
+4. Classify the question into the exact "topic" and "subtopic" from this official taxonomy:
+Taxonomy JSON:
+{tax_str}
+
+Return ONLY a valid JSON array of objects with this exact structure:
 [
   {{
     "questionText": "Full text of the question",
-    "hint": "Any hint, solution, or explanation provided in text (or empty string)",
-    "topic": "Appropriate topic name",
-    "subtopic": "Appropriate subtopic name",
+    "hint": "Step-by-step hint, solution, or explanation",
+    "topic": "TopicName from taxonomy",
+    "subtopic": "SubtopicName from taxonomy",
     "options": [
       {{"text": "Option A text", "isCorrect": false}},
-      {{"text": "Option B text", "isCorrect": false}},
+      {{"text": "Option B text", "isCorrect": true}},
       {{"text": "Option C text", "isCorrect": false}},
       {{"text": "Option D text", "isCorrect": false}}
     ]
@@ -409,8 +420,8 @@ Document Snippet:
                     choices = res_data.get("choices", [])
                     if choices:
                         txt = choices[0].get("message", {}).get("content", "").strip()
-                        match = re.search(r'```(?:json)?\s*(\[.*\])\s*```', txt, re.DOTALL)
-                        json_str = match.group(1) if match else txt
+                        match = re.search(r'```(?:json)?\s*(\[.*\])\s*```', txt, re.DOTALL) or re.search(r'\[.*\]', txt, re.DOTALL)
+                        json_str = match.group(1) if (match and match.lastindex) else (match.group(0) if match else txt)
                         try:
                             parsed = json.loads(json_str)
                         except Exception:
@@ -427,9 +438,11 @@ Document Snippet:
                                 
                                 opts = []
                                 for o in q.get("options", []):
+                                    opt_txt = o.get("text", "") if isinstance(o, dict) else str(o)
+                                    is_corr = bool(o.get("isCorrect", False)) if isinstance(o, dict) else False
                                     opts.append({
-                                        "text": format_math_latex(o.get("text", "")),
-                                        "isCorrect": bool(o.get("isCorrect", False))
+                                        "text": format_math_latex(opt_txt),
+                                        "isCorrect": is_corr
                                     })
                                 
                                 all_parsed_questions.append({
@@ -441,17 +454,20 @@ Document Snippet:
                                 })
                             parsed_chunk = True
             except Exception as e:
-                print(f"Abacus fallback parsing error ({ep}): {e}")
+                print(f"Abacus AI parsing error ({ep}): {e}")
 
     return all_parsed_questions
 
 def parse_with_gemini_fallback(raw_text: str, subject: str = "English", api_key: str = None) -> list:
-    """Uses Google Gemini API to extract questions in chunks when regex parsing finds 0 questions."""
+    """Uses Google Gemini API to extract questions, options, hints, and topics from document text in chunks."""
     key = api_key if api_key and api_key.strip() else os.environ.get("GEMINI_API_KEY", "")
     if not key or not key.strip():
         return []
     
     import requests
+
+    tax = OFFICIAL_TAXONOMY.get(subject, OFFICIAL_TAXONOMY.get("English", {}))
+    tax_str = json.dumps(tax, indent=2)
 
     chunk_size = 5000
     paragraphs = raw_text.split("\n\n")
@@ -473,18 +489,26 @@ def parse_with_gemini_fallback(raw_text: str, subject: str = "English", api_key:
 
     models = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"]
     for chunk in chunks:
-        prompt = f"""You are an expert academic document parser. Extract all multiple choice questions from the given document text into a clean JSON array.
+        prompt = f"""You are an expert academic document parser and tutor. Extract all multiple choice questions from the given document text into a clean JSON array.
 
-Return ONLY a valid JSON array of objects with this structure:
+For each question:
+1. Extract the full questionText (format mathematical symbols using inline LaTeX $ ... $).
+2. Extract all options into an array of objects: {{"text": "...", "isCorrect": true/false}}. Identify the correct option if an answer key or solution is present.
+3. Extract or generate a clear step-by-step hint/explanation for the question in the "hint" field.
+4. Classify the question into the exact "topic" and "subtopic" from this official taxonomy:
+Taxonomy JSON:
+{tax_str}
+
+Return ONLY a valid JSON array of objects with this exact structure:
 [
   {{
     "questionText": "Full text of the question",
-    "hint": "Any hint, solution, or explanation provided in text (or empty string)",
-    "topic": "Appropriate topic name",
-    "subtopic": "Appropriate subtopic name",
+    "hint": "Step-by-step hint, solution, or explanation",
+    "topic": "TopicName from taxonomy",
+    "subtopic": "SubtopicName from taxonomy",
     "options": [
       {{"text": "Option A text", "isCorrect": false}},
-      {{"text": "Option B text", "isCorrect": false}},
+      {{"text": "Option B text", "isCorrect": true}},
       {{"text": "Option C text", "isCorrect": false}},
       {{"text": "Option D text", "isCorrect": false}}
     ]
@@ -515,41 +539,46 @@ Document Text:
                     res_data = r.json()
                     candidates = res_data.get('candidates', [])
                     if candidates:
-                        parts = candidates[0].get('content', {}).get('parts', [])
-                        txt = "\n".join([p.get('text', '') for p in parts if 'text' in p]).strip()
-                        match = re.search(r'```(?:json)?\s*(\[.*\])\s*```', txt, re.DOTALL)
-                        json_str = match.group(1) if match else txt
-                        try:
-                            parsed = json.loads(json_str)
-                        except Exception:
-                            fixed_json = re.sub(r',\s*([\]}])', r'\1', json_str)
-                            if not fixed_json.rstrip().endswith("]"):
-                                fixed_json = fixed_json.rstrip() + "]"
-                            parsed = json.loads(fixed_json)
+                        cand = candidates[0]
+                        content_obj = cand.get('content')
+                        if content_obj and isinstance(content_obj, dict):
+                            parts = content_obj.get('parts', [])
+                            txt = "\n".join([p.get('text', '') for p in parts if isinstance(p, dict) and 'text' in p]).strip()
+                            match = re.search(r'```(?:json)?\s*(\[.*\])\s*```', txt, re.DOTALL) or re.search(r'\[.*\]', txt, re.DOTALL)
+                            json_str = match.group(1) if (match and match.lastindex) else (match.group(0) if match else txt)
+                            try:
+                                parsed = json.loads(json_str)
+                            except Exception:
+                                fixed_json = re.sub(r',\s*([\]}])', r'\1', json_str)
+                                if not fixed_json.rstrip().endswith("]"):
+                                    fixed_json = fixed_json.rstrip() + "]"
+                                parsed = json.loads(fixed_json)
 
-                        if isinstance(parsed, list) and len(parsed) > 0:
-                            for q in parsed:
-                                q_text = format_math_latex(q.get("questionText", ""))
-                                h_text = format_math_latex(q.get("hint", ""))
-                                t_top, t_sub = auto_classify_topic_subtopic(q_text, h_text, subject=subject)
-                                
-                                opts = []
-                                for o in q.get("options", []):
-                                    opts.append({
-                                        "text": format_math_latex(o.get("text", "")),
-                                        "isCorrect": bool(o.get("isCorrect", False))
+                            if isinstance(parsed, list) and len(parsed) > 0:
+                                for q in parsed:
+                                    q_text = format_math_latex(q.get("questionText", ""))
+                                    h_text = format_math_latex(q.get("hint", ""))
+                                    t_top, t_sub = auto_classify_topic_subtopic(q_text, h_text, subject=subject)
+                                    
+                                    opts = []
+                                    for o in q.get("options", []):
+                                        opt_txt = o.get("text", "") if isinstance(o, dict) else str(o)
+                                        is_corr = bool(o.get("isCorrect", False)) if isinstance(o, dict) else False
+                                        opts.append({
+                                            "text": format_math_latex(opt_txt),
+                                            "isCorrect": is_corr
+                                        })
+                                    
+                                    all_parsed_questions.append({
+                                        "questionText": q_text,
+                                        "hint": h_text,
+                                        "topic": q.get("topic") or t_top,
+                                        "subtopic": q.get("subtopic") or t_sub,
+                                        "options": opts
                                     })
-                                
-                                all_parsed_questions.append({
-                                    "questionText": q_text,
-                                    "hint": h_text,
-                                    "topic": q.get("topic") or t_top,
-                                    "subtopic": q.get("subtopic") or t_sub,
-                                    "options": opts
-                                })
-                            parsed_chunk = True
+                                parsed_chunk = True
             except Exception as e:
-                print(f"Gemini fallback failed with model {m}: {e}")
+                print(f"Gemini AI parsing failed with model {m}: {e}")
 
     return all_parsed_questions
 
@@ -573,8 +602,13 @@ def classify_topics_with_ai(questions: list, subject: str = "English", api_key: 
         batch = questions[i:i+batch_size]
         q_summary = []
         for idx, q in enumerate(batch):
-            opts = ", ".join([f"{chr(65+j)}: {o.get('text','')}" for j, o in enumerate(q.get('options', []))])
-            q_summary.append(f"Q{idx+1}: {q.get('questionText','')[:300]} (Options: {opts})")
+            opts_formatted = []
+            for j, o in enumerate(q.get('options', [])):
+                opt_str = o.get('text', '') if isinstance(o, dict) else str(o)
+                opts_formatted.append(f"{chr(65+j)}: {opt_str}")
+            opts = ", ".join(opts_formatted)
+            q_text = (q.get('questionText', '') or '')[:300]
+            q_summary.append(f"Q{idx+1}: {q_text} (Options: {opts})")
         
         prompt = f"""Classify each of the following questions into the exact topic and subtopic from this official taxonomy:
 Taxonomy JSON:
@@ -597,29 +631,43 @@ Return ONLY a valid JSON array of objects with the exact classification:
                 res = requests.post(ep, json={"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.1}, headers=headers, timeout=20)
                 if res.status_code == 200:
                     txt = res.json().get("choices", [{}])[0].get("message", {}).get("content", "")
-                    match = re.search(r'\[.*\]', txt, re.DOTALL)
+                    match = re.search(r'```(?:json)?\s*(\[.*\])\s*```', txt, re.DOTALL) or re.search(r'\[.*\]', txt, re.DOTALL)
                     if match:
-                        cls_list = json.loads(match.group(0))
+                        json_str = match.group(1) if (match and match.lastindex) else match.group(0)
+                        cls_list = json.loads(json_str)
                         for item in cls_list:
                             q_idx = item.get("qIndex", 0) - 1
                             if 0 <= q_idx < len(batch):
                                 if item.get("topic"): batch[q_idx]["topic"] = item["topic"]
                                 if item.get("subtopic"): batch[q_idx]["subtopic"] = item["subtopic"]
             elif key:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
-                res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1}}, headers={"Content-Type": "application/json"}, timeout=20)
-                if res.status_code == 200:
-                    candidates = res.json().get('candidates', [])
-                    if candidates:
-                        txt = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-                        match = re.search(r'\[.*\]', txt, re.DOTALL)
-                        if match:
-                            cls_list = json.loads(match.group(0))
-                            for item in cls_list:
-                                q_idx = item.get("qIndex", 0) - 1
-                                if 0 <= q_idx < len(batch):
-                                    if item.get("topic"): batch[q_idx]["topic"] = item["topic"]
-                                    if item.get("subtopic"): batch[q_idx]["subtopic"] = item["subtopic"]
+                gemini_models = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"]
+                for g_model in gemini_models:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{g_model}:generateContent?key={key}"
+                    res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.1}}, headers={"Content-Type": "application/json"}, timeout=20)
+                    if res.status_code == 200:
+                        candidates = res.json().get('candidates', [])
+                        if candidates:
+                            cand = candidates[0]
+                            content_obj = cand.get('content')
+                            if content_obj and isinstance(content_obj, dict):
+                                parts = content_obj.get('parts', [])
+                                txt = "\n".join([p.get('text', '') for p in parts if isinstance(p, dict) and 'text' in p]).strip()
+                                match = re.search(r'```(?:json)?\s*(\[.*\])\s*```', txt, re.DOTALL) or re.search(r'\[.*\]', txt, re.DOTALL)
+                                if match:
+                                    json_str = match.group(1) if (match and match.lastindex) else match.group(0)
+                                    try:
+                                        cls_list = json.loads(json_str)
+                                    except Exception:
+                                        fixed_json = re.sub(r',\s*([\]}])', r'\1', json_str)
+                                        cls_list = json.loads(fixed_json)
+                                    if isinstance(cls_list, list):
+                                        for item in cls_list:
+                                            q_idx = item.get("qIndex", 0) - 1
+                                            if 0 <= q_idx < len(batch):
+                                                if item.get("topic"): batch[q_idx]["topic"] = item["topic"]
+                                                if item.get("subtopic"): batch[q_idx]["subtopic"] = item["subtopic"]
+                                        break
         except Exception as e:
             print(f"AI Topic classification batch warning: {e}")
 
@@ -639,15 +687,38 @@ def parse_pdf_questions(
 ) -> list:
     """
     Parses a question paper PDF or DOCX into JSON.
-    Stage 1 regex parser runs first for instant 0-cost extraction.
-    If regex finds 0 questions, Stage 2 AI parser runs with chunking.
+    When API keys are available, Stage 1 uses AI-only extraction directly from the PDF text.
+    If no API key is provided or AI extraction returns 0 questions, local regex parser runs as fallback.
     """
     text = extract_raw_text(file_path)
     if not text or not text.strip():
         return []
 
+    provider_clean = (provider or "gemini").lower().strip()
+    has_gemini_key = bool(api_key and api_key.strip()) or bool(os.environ.get("GEMINI_API_KEY", "").strip())
+    has_abacus_key = bool(abacus_key and abacus_key.strip()) or bool(os.environ.get("ABACUS_API_KEY", "").strip())
+
     # =========================================================================
-    # STAGE 1: LOCAL REGEX PARSER (FAST, 0 API COST, INSTANT)
+    # STAGE 1: AI-ONLY EXTRACTION (PRIMARY STAGE WHEN API KEYS ARE AVAILABLE)
+    # =========================================================================
+    if has_gemini_key or has_abacus_key:
+        ai_questions = []
+        if provider_clean == "abacus" or (has_abacus_key and not has_gemini_key):
+            ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
+            if not ai_questions and has_gemini_key:
+                ai_questions = parse_with_gemini_fallback(text, subject=subject, api_key=api_key)
+        else:
+            ai_questions = parse_with_gemini_fallback(text, subject=subject, api_key=api_key)
+            if not ai_questions and has_abacus_key:
+                ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
+
+        if ai_questions and len(ai_questions) > 0:
+            if use_ai_topics:
+                ai_questions = classify_topics_with_ai(ai_questions, subject=subject, api_key=api_key, abacus_key=abacus_key, provider=provider, model=model)
+            return ai_questions
+
+    # =========================================================================
+    # STAGE 2: LOCAL REGEX PARSER (FALLBACK WHEN NO API KEY OR AI FINDS 0 QUESTIONS)
     # =========================================================================
     q_marker_pattern = r'(?:^|\n)\s*(?:Q(?:uestion)?\s*[-.]?\s*\d+[:\.-]?|\b\d+[\.\):-]|(?:\([0-9]+\)))\s*'
     matches = list(re.finditer(q_marker_pattern, text, re.MULTILINE | re.IGNORECASE))
@@ -779,36 +850,12 @@ def parse_pdf_questions(
                 "options": formatted_options
             })
 
-    # If regex parser found questions:
     if parsed_questions and len(parsed_questions) > 0:
         if use_ai_topics:
             parsed_questions = classify_topics_with_ai(parsed_questions, subject=subject, api_key=api_key, abacus_key=abacus_key, provider=provider, model=model)
         return parsed_questions
 
-    # =========================================================================
-    # STAGE 2: AI PARSER FALLBACK (Runs only if Regex finds 0 questions)
-    # =========================================================================
-    provider_clean = (provider or "gemini").lower().strip()
-    if provider_clean == "abacus" or (abacus_key and not api_key):
-        ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
-        if ai_questions:
-            if use_ai_topics:
-                ai_questions = classify_topics_with_ai(ai_questions, subject=subject, api_key=api_key, abacus_key=abacus_key, provider=provider, model=model)
-            return ai_questions
-
-    ai_questions = parse_with_gemini_fallback(text, subject=subject, api_key=api_key)
-    if ai_questions:
-        if use_ai_topics:
-            ai_questions = classify_topics_with_ai(ai_questions, subject=subject, api_key=api_key, abacus_key=abacus_key, provider=provider, model=model)
-        return ai_questions
-
-    if abacus_key:
-        ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)
-        if ai_questions:
-            if use_ai_topics:
-                ai_questions = classify_topics_with_ai(ai_questions, subject=subject, api_key=api_key, abacus_key=abacus_key, provider=provider, model=model)
-            return ai_questions
-
     return []
+
 
 

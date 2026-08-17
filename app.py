@@ -125,7 +125,6 @@ async def parse_document_endpoint(
     if ext not in allowed_exts:
         raise HTTPException(status_code=400, detail="File must be a PDF or Word document (.docx, .doc).")
     
-    # Save uploaded file to temp file
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
             contents = await file.read()
@@ -144,6 +143,12 @@ async def parse_document_endpoint(
             use_ai_topics=useAiTopics,
             custom_prompt=customPrompt.strip() if customPrompt else None
         )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Document parsing failed: {str(e)}")
     finally:
         if 'tmp_path' in locals() and os.path.exists(tmp_path):
             try:
