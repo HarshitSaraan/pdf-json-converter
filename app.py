@@ -242,6 +242,91 @@ async def delete_question(question_id: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.post("/api/mock-tests/generate")
+async def generate_mock_test(request: Request):
+    """Generates a Mock Test paper from Question Bank based on subject counts & difficulty percentages."""
+    import random
+    from bson.objectid import ObjectId
+    
+    db = get_db()
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    payload = await request.json()
+    subject_counts = payload.get("subjectCounts", {}) # e.g. {"English": 10, "Quants": 10}
+    difficulty = payload.get("difficulty", {"easy": 30, "medium": 50, "hard": 20})
+    exclude_used = payload.get("excludeUsed", True)
+
+    easy_pct = float(difficulty.get("easy", 30)) / 100.0
+    medium_pct = float(difficulty.get("medium", 50)) / 100.0
+    hard_pct = float(difficulty.get("hard", 20)) / 100.0
+
+    selected_questions = []
+    ids_to_mark_used = []
+
+    for subj, total_q in subject_counts.items():
+        total_q = int(total_q)
+        if total_q <= 0:
+            continue
+
+        easy_target = round(total_q * easy_pct)
+        hard_target = round(total_q * hard_pct)
+        medium_target = max(0, total_q - (easy_target + hard_target))
+
+        tier_targets = [
+            ("easy", easy_target),
+            ("medium", medium_target),
+            ("hard", hard_target)
+        ]
+
+        for label, count in tier_targets:
+            if count <= 0:
+                continue
+
+            query = {"subject": {"$regex": f"^{subj}$", "$options": "i"}, "label": label.lower()}
+            if exclude_used:
+                query["isUsed"] = {"$ne": True}
+
+            cursor = db.question_bank.find(query)
+            matching_docs = await cursor.to_list(length=1000)
+
+            # Fallback if not enough unused questions exist
+            if len(matching_docs) < count and exclude_used:
+                query_fallback = {"subject": {"$regex": f"^{subj}$", "$options": "i"}, "label": label.lower()}
+                cursor_fb = db.question_bank.find(query_fallback)
+                matching_docs = await cursor_fb.to_list(length=1000)
+
+            if matching_docs:
+                picked = random.sample(matching_docs, min(count, len(matching_docs)))
+                for doc in picked:
+                    ids_to_mark_used.append(doc["_id"])
+                    doc["id"] = str(doc["_id"])
+                    del doc["_id"]
+                    doc["isUsed"] = True
+                    selected_questions.append(doc)
+
+    # Mark selected questions as used in MongoDB
+    if ids_to_mark_used:
+        await db.question_bank.update_many(
+            {"_id": {"$in": ids_to_mark_used}},
+            {"$set": {"isUsed": True}}
+        )
+
+    return {
+        "status": "success",
+        "count": len(selected_questions),
+        "questions": selected_questions
+    }
+
+@app.post("/api/questions/reset-used")
+async def reset_used_questions():
+    """Resets the isUsed status back to false for all questions in the Question Bank."""
+    db = get_db()
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    result = await db.question_bank.update_many({}, {"$set": {"isUsed": False}})
+    return {"status": "success", "message": f"Reset {result.modified_count} questions back to unused status"}
+
 # Serve static frontend files (if static folder exists)
 if os.path.exists("static"):
     app.mount("/", StaticFiles(directory="static", html=True), name="static")

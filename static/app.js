@@ -1348,23 +1348,26 @@ Options:
   });
 
   // =========================================================================
-  // Primary Navigation Mode Switcher (Extract PDF vs Question Bank vs Single Upload)
+  // Primary Navigation Mode Switcher (4 Options)
   // =========================================================================
   const modeExtractBtn = document.getElementById('modeExtractBtn');
   const modeQbBtn = document.getElementById('modeQbBtn');
   const modeAddSingleBtn = document.getElementById('modeAddSingleBtn');
+  const modeMockBtn = document.getElementById('modeMockBtn');
 
   const uploadSection = document.getElementById('uploadSection');
   const qbStandaloneSection = document.getElementById('qbStandaloneSection');
   const singleQSection = document.getElementById('singleQSection');
+  const mockGeneratorSection = document.getElementById('mockGeneratorSection');
 
   function switchMainMode(activeMode) {
-    [modeExtractBtn, modeQbBtn, modeAddSingleBtn].forEach(btn => btn && btn.classList.remove('active'));
+    [modeExtractBtn, modeQbBtn, modeAddSingleBtn, modeMockBtn].forEach(btn => btn && btn.classList.remove('active'));
     
     uploadSection.classList.add('hidden');
     if (workspaceSection) workspaceSection.classList.add('hidden');
     qbStandaloneSection.classList.add('hidden');
     singleQSection.classList.add('hidden');
+    if (mockGeneratorSection) mockGeneratorSection.classList.add('hidden');
 
     if (activeMode === 'extract') {
       modeExtractBtn.classList.add('active');
@@ -1380,16 +1383,21 @@ Options:
       modeAddSingleBtn.classList.add('active');
       singleQSection.classList.remove('hidden');
       initSingleQForm();
+    } else if (activeMode === 'mock') {
+      modeMockBtn.classList.add('active');
+      mockGeneratorSection.classList.remove('hidden');
+      initMockGeneratorForm();
     }
   }
 
   if (modeExtractBtn) modeExtractBtn.addEventListener('click', () => switchMainMode('extract'));
   if (modeQbBtn) modeQbBtn.addEventListener('click', () => switchMainMode('qb'));
   if (modeAddSingleBtn) modeAddSingleBtn.addEventListener('click', () => switchMainMode('single'));
+  if (modeMockBtn) modeMockBtn.addEventListener('click', () => switchMainMode('mock'));
 
 
   // =========================================================================
-  // Standalone Question Bank Logic (Option 2)
+  // Standalone Question Bank Logic (Option 2) - Collapsible Cards & USED Stamp
   // =========================================================================
   let qbStandaloneData = [];
   const qbStandaloneList = document.getElementById('qbStandaloneList');
@@ -1455,7 +1463,7 @@ Options:
     qbStandaloneList.innerHTML = '';
     filtered.forEach((q, idx) => {
       const card = document.createElement('div');
-      card.className = 'question-card';
+      card.className = 'question-card collapsible';
 
       let optionsHtml = '';
       (q.options || []).forEach(opt => {
@@ -1469,16 +1477,20 @@ Options:
       });
 
       card.innerHTML = `
-        <div class="card-header">
-          <span class="question-index"><i class="fa-solid fa-database"></i> Question ${idx + 1}</span>
-          <div class="card-meta-inputs" style="gap: 0.5rem;">
+        <div class="card-header qb-card-toggle">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <i class="fa-solid fa-chevron-down expand-chevron"></i>
+            <span class="question-index"><i class="fa-solid fa-database"></i> Question ${idx + 1}</span>
+          </div>
+          <div class="card-meta-inputs" style="gap: 0.6rem; align-items: center;">
+            ${q.isUsed ? `<span class="used-stamp">USED</span>` : ''}
             <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-weight:600; text-transform:uppercase; font-size:0.75rem; color:#818cf8;">${q.label || 'medium'}</span>
             <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-size:0.75rem;">${q.subject || 'N/A'}</span>
             <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-size:0.75rem;">${q.topic || 'N/A'}</span>
             ${q.id ? `<button class="btn btn-icon text-danger delete-qb-item-btn" data-id="${q.id}" title="Delete from Question Bank"><i class="fa-solid fa-trash"></i></button>` : ''}
           </div>
         </div>
-        <div class="card-body">
+        <div class="card-body-collapsible">
           <div class="form-group">
             <label><i class="fa-solid fa-pen-nib"></i> Question Text</label>
             <textarea class="q-text-input" rows="2" disabled>${escapeHtml(q.questionText)}</textarea>
@@ -1496,6 +1508,13 @@ Options:
         </div>
       `;
       
+      const headerEl = card.querySelector('.qb-card-toggle');
+      headerEl.addEventListener('click', (e) => {
+        // Prevent expanding when clicking delete button
+        if (e.target.closest('.delete-qb-item-btn')) return;
+        card.classList.toggle('expanded');
+      });
+
       const qBox = card.querySelector('.qb-math-q');
       if (qBox) renderMathInContainer(qBox, q.questionText);
       const hBox = card.querySelector('.qb-math-h');
@@ -1718,6 +1737,220 @@ Options:
         submitBtn.innerHTML = origHtml;
         submitBtn.disabled = false;
       }
+    });
+  }
+
+  // =========================================================================
+  // Mock Test Paper Generator Logic (Option 4)
+  // =========================================================================
+  const mockGeneratorForm = document.getElementById('mockGeneratorForm');
+  const mockEnglishCount = document.getElementById('mockEnglishCount');
+  const mockQuantsCount = document.getElementById('mockQuantsCount');
+  const mockEasyPct = document.getElementById('mockEasyPct');
+  const mockMediumPct = document.getElementById('mockMediumPct');
+  const mockHardPct = document.getElementById('mockHardPct');
+  const diffTotalBadge = document.getElementById('diffTotalBadge');
+  const mockExcludeUsedCheckbox = document.getElementById('mockExcludeUsedCheckbox');
+  const mockResultsSection = document.getElementById('mockResultsSection');
+  const mockQuestionsList = document.getElementById('mockQuestionsList');
+  const mockQuestionCountBadge = document.getElementById('mockQuestionCountBadge');
+  const resetAllUsedBtn = document.getElementById('resetAllUsedBtn');
+  const copyMockJsonBtn = document.getElementById('copyMockJsonBtn');
+  const downloadMockJsonBtn = document.getElementById('downloadMockJsonBtn');
+
+  let generatedMockQuestions = [];
+
+  function initMockGeneratorForm() {
+    updateDiffTotalBadge();
+  }
+
+  function updateDiffTotalBadge() {
+    if (!diffTotalBadge) return;
+    const easy = parseFloat(mockEasyPct.value) || 0;
+    const med = parseFloat(mockMediumPct.value) || 0;
+    const hard = parseFloat(mockHardPct.value) || 0;
+    const sum = easy + med + hard;
+
+    diffTotalBadge.textContent = `Total: ${sum}%`;
+    if (Math.abs(sum - 100) < 0.01) {
+      diffTotalBadge.style.background = 'rgba(16,185,129,0.2)';
+      diffTotalBadge.style.color = '#10b981';
+    } else {
+      diffTotalBadge.style.background = 'rgba(239,68,68,0.2)';
+      diffTotalBadge.style.color = '#ef4444';
+    }
+  }
+
+  document.querySelectorAll('.mock-diff-pct').forEach(input => {
+    input.addEventListener('input', updateDiffTotalBadge);
+  });
+
+  if (resetAllUsedBtn) {
+    resetAllUsedBtn.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to reset all USED stamps in MongoDB back to unused?')) return;
+      const origText = resetAllUsedBtn.innerHTML;
+      resetAllUsedBtn.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i> Resetting...';
+      try {
+        const res = await fetch(`${API_BASE}/api/questions/reset-used`, { method: 'POST' });
+        const result = await res.json();
+        if (res.ok) {
+          alert(result.message);
+          if (qbStandaloneData) fetchStandaloneQb();
+        } else {
+          alert('Error: ' + result.detail);
+        }
+      } catch(err) {
+        alert('Network error: ' + err.message);
+      } finally {
+        resetAllUsedBtn.innerHTML = origText;
+      }
+    });
+  }
+
+  if (mockGeneratorForm) {
+    mockGeneratorForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const easy = parseFloat(mockEasyPct.value) || 0;
+      const med = parseFloat(mockMediumPct.value) || 0;
+      const hard = parseFloat(mockHardPct.value) || 0;
+      if (Math.abs((easy + med + hard) - 100) > 0.01) {
+        alert('Difficulty allocation percentages must add up to exactly 100%. Current total: ' + (easy + med + hard) + '%');
+        return;
+      }
+
+      const engCount = parseInt(mockEnglishCount.value) || 0;
+      const quantsCount = parseInt(mockQuantsCount.value) || 0;
+      if (engCount + quantsCount <= 0) {
+        alert('Please specify at least 1 question for English or Quants.');
+        return;
+      }
+
+      const payload = {
+        subjectCounts: {
+          "English": engCount,
+          "Quants": quantsCount
+        },
+        difficulty: {
+          "easy": easy,
+          "medium": med,
+          "hard": hard
+        },
+        excludeUsed: mockExcludeUsedCheckbox ? mockExcludeUsedCheckbox.checked : true
+      };
+
+      const btn = document.getElementById('generateMockBtn');
+      const origHtml = btn.innerHTML;
+      btn.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i> Generating Mock Paper...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/mock-tests/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (res.ok) {
+          generatedMockQuestions = result.questions || [];
+          renderMockResults();
+        } else {
+          alert('Error generating mock paper: ' + (result.detail || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      } finally {
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+      }
+    });
+  }
+
+  function renderMockResults() {
+    if (!mockResultsSection || !mockQuestionsList) return;
+    mockResultsSection.classList.remove('hidden');
+    mockQuestionCountBadge.textContent = `${generatedMockQuestions.length} Questions`;
+    mockQuestionsList.innerHTML = '';
+
+    if (generatedMockQuestions.length === 0) {
+      mockQuestionsList.innerHTML = '<div class="empty-state">No questions found matching your criteria. Try adjusting difficulty percentages or question counts.</div>';
+      return;
+    }
+
+    generatedMockQuestions.forEach((q, idx) => {
+      const card = document.createElement('div');
+      card.className = 'question-card';
+
+      let optionsHtml = '';
+      (q.options || []).forEach(opt => {
+        optionsHtml += `
+          <div class="option-row ${opt.isCorrect ? 'correct' : ''}">
+            <input type="radio" class="radio-custom" ${opt.isCorrect ? 'checked' : ''} disabled>
+            <input type="text" class="option-input" value="${escapeHtml(opt.text)}" disabled>
+            ${opt.isCorrect ? '<span class="correct-badge"><i class="fa-solid fa-check"></i> Correct</span>' : ''}
+          </div>
+        `;
+      });
+
+      card.innerHTML = `
+        <div class="card-header">
+          <span class="question-index"><i class="fa-solid fa-file-signature"></i> Question ${idx + 1}</span>
+          <div class="card-meta-inputs" style="gap: 0.6rem; align-items: center;">
+            <span class="used-stamp">USED</span>
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-weight:600; text-transform:uppercase; font-size:0.75rem; color:#818cf8;">${q.label || 'medium'}</span>
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-size:0.75rem;">${q.subject || 'N/A'}</span>
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-size:0.75rem;">${q.topic || 'N/A'}</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="form-group">
+            <label><i class="fa-solid fa-pen-nib"></i> Question Text</label>
+            <textarea class="q-text-input" rows="2" disabled>${escapeHtml(q.questionText)}</textarea>
+            <div class="latex-preview-box math-render mock-math-q" style="margin-top:0.4rem;"></div>
+          </div>
+          ${q.hint ? `
+          <div class="hint-wrapper">
+            <div class="hint-header"><label><i class="fa-solid fa-lightbulb"></i> Hint / Explanation</label></div>
+            <textarea class="q-hint-input" rows="3" disabled>${escapeHtml(q.hint)}</textarea>
+            <div class="latex-preview-box math-render mock-math-h" style="margin-top:0.4rem;"></div>
+          </div>` : ''}
+          <div class="options-container" style="margin-top:1rem;">
+            ${optionsHtml}
+          </div>
+        </div>
+      `;
+
+      const qBox = card.querySelector('.mock-math-q');
+      if (qBox) renderMathInContainer(qBox, q.questionText);
+      const hBox = card.querySelector('.mock-math-h');
+      if (hBox && q.hint) renderMathInContainer(hBox, q.hint);
+
+      mockQuestionsList.appendChild(card);
+    });
+
+    mockResultsSection.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  if (copyMockJsonBtn) {
+    copyMockJsonBtn.addEventListener('click', () => {
+      copyTextToClipboard(JSON.stringify(generatedMockQuestions, null, 2)).then(() => {
+        alert('Mock JSON copied to clipboard!');
+      });
+    });
+  }
+
+  if (downloadMockJsonBtn) {
+    downloadMockJsonBtn.addEventListener('click', async () => {
+      const jsonStr = JSON.stringify(generatedMockQuestions, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'mock_test_paper.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
     });
   }
 

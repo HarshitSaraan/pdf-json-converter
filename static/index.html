@@ -259,19 +259,23 @@
   <!-- Main Container -->
   <main class="app-container hidden" id="mainAppContainer">
     
-    <!-- Top 3 Primary Navigation Options -->
+    <!-- Top 4 Primary Navigation Options -->
     <div class="main-mode-switcher">
       <button class="main-mode-btn active" id="modeExtractBtn">
         <i class="fa-solid fa-file-pdf" style="color: #ef4444;"></i>
-        <span>1. Extract PDF / DOCX</span>
+        <span>1. Extract Document</span>
       </button>
       <button class="main-mode-btn" id="modeQbBtn">
         <i class="fa-solid fa-database" style="color: #6366f1;"></i>
-        <span>2. View Question Bank</span>
+        <span>2. Question Bank</span>
       </button>
       <button class="main-mode-btn" id="modeAddSingleBtn">
         <i class="fa-solid fa-square-plus" style="color: #10b981;"></i>
-        <span>3. Add Single Question</span>
+        <span>3. Add Question</span>
+      </button>
+      <button class="main-mode-btn" id="modeMockBtn">
+        <i class="fa-solid fa-file-signature" style="color: #f59e0b;"></i>
+        <span>4. Create Mock Test</span>
       </button>
     </div>
 
@@ -548,6 +552,95 @@
             </button>
           </div>
         </form>
+      </div>
+    </section>
+
+    <!-- Mock Test Paper Generator Section (Option 4) -->
+    <section class="mock-generator-section hidden" id="mockGeneratorSection">
+      <div class="hero-card" style="max-width: 950px; margin: 0 auto 2rem auto;">
+        <div class="hero-header">
+          <h2><i class="fa-solid fa-file-signature" style="color: #f59e0b;"></i> Mock Test Paper Generator</h2>
+          <p class="modal-desc">Configure question counts per subject and difficulty percentage allocation to generate a customized exam mock paper.</p>
+        </div>
+
+        <form id="mockGeneratorForm">
+          <!-- Subject Question Counts Container -->
+          <div style="background: var(--bg-input); padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1.5rem;">
+            <h4 style="margin-bottom: 0.8rem; font-size: 0.95rem; color: var(--text-primary);"><i class="fa-solid fa-graduation-cap" style="color: #6366f1;"></i> 1. Number of Questions per Subject</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+              <div class="form-group">
+                <label>English Questions:</label>
+                <input type="number" id="mockEnglishCount" class="sm-input" value="10" min="0" max="100" style="width: 100%; padding: 0.5rem;">
+              </div>
+              <div class="form-group">
+                <label>Quants Questions:</label>
+                <input type="number" id="mockQuantsCount" class="sm-input" value="10" min="0" max="100" style="width: 100%; padding: 0.5rem;">
+              </div>
+            </div>
+          </div>
+
+          <!-- Difficulty Allocation (%) Container -->
+          <div style="background: var(--bg-input); padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+              <h4 style="font-size: 0.95rem; color: var(--text-primary);"><i class="fa-solid fa-sliders" style="color: #10b981;"></i> 2. Difficulty Allocation (% of 100%)</h4>
+              <span id="diffTotalBadge" class="badge" style="background: rgba(16,185,129,0.2); color: #10b981; padding: 0.3rem 0.75rem; border-radius: 20px; font-weight: 700;">Total: 100%</span>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+              <div class="form-group">
+                <label>Easy %:</label>
+                <input type="number" id="mockEasyPct" class="sm-input mock-diff-pct" value="30" min="0" max="100" style="width: 100%; padding: 0.5rem;">
+              </div>
+              <div class="form-group">
+                <label>Medium %:</label>
+                <input type="number" id="mockMediumPct" class="sm-input mock-diff-pct" value="50" min="0" max="100" style="width: 100%; padding: 0.5rem;">
+              </div>
+              <div class="form-group">
+                <label>Hard %:</label>
+                <input type="number" id="mockHardPct" class="sm-input mock-diff-pct" value="20" min="0" max="100" style="width: 100%; padding: 0.5rem;">
+              </div>
+            </div>
+          </div>
+
+          <!-- Settings Checkbox -->
+          <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <input type="checkbox" id="mockExcludeUsedCheckbox" checked style="width: 16px; height: 16px; cursor: pointer;">
+            <label for="mockExcludeUsedCheckbox" style="font-size: 0.88rem; cursor: pointer; color: var(--text-secondary);">
+              Prioritize unused questions (automatically marks generated questions as <strong style="color: #ef4444;">USED</strong> in MongoDB)
+            </label>
+          </div>
+
+          <!-- Actions Row -->
+          <div style="display: flex; gap: 1rem; justify-content: space-between; align-items: center;">
+            <button type="button" class="btn btn-outline text-muted btn-sm" id="resetAllUsedBtn" title="Reset all USED stamps in MongoDB back to unused">
+              <i class="fa-solid fa-rotate-left"></i> Reset All USED Stamps
+            </button>
+            <button type="submit" class="btn btn-primary btn-lg" id="generateMockBtn">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Mock Paper
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Generated Mock Test Paper Results -->
+      <div class="workspace-section hidden" id="mockResultsSection" style="margin-top: 2rem;">
+        <div class="workspace-header">
+          <div class="workspace-title">
+            <h3><i class="fa-solid fa-file-signature"></i> Generated Mock Test Paper</h3>
+            <span class="count-badge" id="mockQuestionCountBadge">0 Questions</span>
+          </div>
+          <div class="action-buttons-group">
+            <button class="btn btn-outline" id="copyMockJsonBtn"><i class="fa-regular fa-copy"></i> Copy JSON</button>
+            <button class="btn btn-success" id="downloadMockJsonBtn"><i class="fa-solid fa-download"></i> Download Mock JSON</button>
+          </div>
+        </div>
+        <div class="editor-container">
+          <div class="cards-view">
+            <div class="questions-list" id="mockQuestionsList">
+              <!-- Generated questions populated here -->
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 

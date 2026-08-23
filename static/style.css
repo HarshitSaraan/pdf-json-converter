@@ -1094,3 +1094,52 @@ input[type="text"]:focus, textarea:focus {
   color: #818cf8;
   box-shadow: var(--shadow-glow);
 }
+
+/* Red USED Stamp Badge (matches user uploaded screenshot) */
+.used-stamp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #ef4444;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  transform: rotate(-6deg);
+  box-shadow: 0 2px 5px rgba(239, 68, 68, 0.2);
+  user-select: none;
+}
+
+/* Collapsible Question Card for Question Bank */
+.question-card.collapsible .card-header {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s ease;
+}
+
+.question-card.collapsible .card-header:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.expand-chevron {
+  transition: transform 0.3s ease;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.question-card.expanded .expand-chevron {
+  transform: rotate(180deg);
+}
+
+.question-card .card-body-collapsible {
+  display: none;
+  padding: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.question-card.expanded .card-body-collapsible {
+  display: block;
+}
