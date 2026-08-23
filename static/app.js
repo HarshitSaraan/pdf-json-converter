@@ -1342,31 +1342,116 @@ Options:
     }
   });
 
-  async function fetchQuestionBank() {
-    qbList.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner spin-icon"></i> Loading Question Bank...</div>';
+  // =========================================================================
+  // Primary Navigation Mode Switcher (Extract PDF vs Question Bank vs Single Upload)
+  // =========================================================================
+  const modeExtractBtn = document.getElementById('modeExtractBtn');
+  const modeQbBtn = document.getElementById('modeQbBtn');
+  const modeAddSingleBtn = document.getElementById('modeAddSingleBtn');
+
+  const uploadSection = document.getElementById('uploadSection');
+  const qbStandaloneSection = document.getElementById('qbStandaloneSection');
+  const singleQSection = document.getElementById('singleQSection');
+
+  function switchMainMode(activeMode) {
+    [modeExtractBtn, modeQbBtn, modeAddSingleBtn].forEach(btn => btn && btn.classList.remove('active'));
+    
+    uploadSection.classList.add('hidden');
+    if (workspaceSection) workspaceSection.classList.add('hidden');
+    qbStandaloneSection.classList.add('hidden');
+    singleQSection.classList.add('hidden');
+
+    if (activeMode === 'extract') {
+      modeExtractBtn.classList.add('active');
+      uploadSection.classList.remove('hidden');
+      if (questionsData && questionsData.length > 0) {
+        workspaceSection.classList.remove('hidden');
+      }
+    } else if (activeMode === 'qb') {
+      modeQbBtn.classList.add('active');
+      qbStandaloneSection.classList.remove('hidden');
+      fetchStandaloneQb();
+    } else if (activeMode === 'single') {
+      modeAddSingleBtn.classList.add('active');
+      singleQSection.classList.remove('hidden');
+      initSingleQForm();
+    }
+  }
+
+  if (modeExtractBtn) modeExtractBtn.addEventListener('click', () => switchMainMode('extract'));
+  if (modeQbBtn) modeQbBtn.addEventListener('click', () => switchMainMode('qb'));
+  if (modeAddSingleBtn) modeAddSingleBtn.addEventListener('click', () => switchMainMode('single'));
+
+
+  // =========================================================================
+  // Standalone Question Bank Logic (Option 2)
+  // =========================================================================
+  let qbStandaloneData = [];
+  const qbStandaloneList = document.getElementById('qbStandaloneList');
+  const qbTotalBadge = document.getElementById('qbTotalBadge');
+  const qbSearchInput = document.getElementById('qbSearchInput');
+  const qbSubjectFilter = document.getElementById('qbSubjectFilter');
+  const qbLabelFilter = document.getElementById('qbLabelFilter');
+  const refreshQbBtn = document.getElementById('refreshQbBtn');
+
+  async function fetchStandaloneQb() {
+    qbStandaloneList.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner spin-icon"></i> Loading Question Bank...</div>';
     try {
       const response = await fetch(`${API_BASE}/api/questions`);
       const result = await response.json();
       if (response.ok) {
-        renderQuestionBank(result.questions || []);
+        qbStandaloneData = result.questions || [];
+        renderStandaloneQb();
       } else {
-        qbList.innerHTML = `<div class="empty-state text-danger">Error: ${result.detail}</div>`;
+        qbStandaloneList.innerHTML = `<div class="empty-state text-danger">Error: ${result.detail}</div>`;
       }
     } catch (err) {
-      qbList.innerHTML = `<div class="empty-state text-danger">Network Error: ${err.message}</div>`;
+      qbStandaloneList.innerHTML = `<div class="empty-state text-danger">Network Error: ${err.message}</div>`;
     }
   }
 
-  function renderQuestionBank(qbQuestions) {
-    if (!qbQuestions || qbQuestions.length === 0) {
-      qbList.innerHTML = '<div class="empty-state">Question bank is empty.</div>';
+  if (refreshQbBtn) refreshQbBtn.addEventListener('click', fetchStandaloneQb);
+  if (qbSearchInput) qbSearchInput.addEventListener('input', renderStandaloneQb);
+  if (qbSubjectFilter) qbSubjectFilter.addEventListener('change', renderStandaloneQb);
+  if (qbLabelFilter) qbLabelFilter.addEventListener('change', renderStandaloneQb);
+
+  function renderStandaloneQb() {
+    if (!qbStandaloneData || qbStandaloneData.length === 0) {
+      qbStandaloneList.innerHTML = '<div class="empty-state">Question bank is empty.</div>';
+      qbTotalBadge.textContent = '0 Questions';
       return;
     }
-    qbList.innerHTML = '';
-    qbQuestions.forEach((q, qIndex) => {
+
+    const query = (qbSearchInput ? qbSearchInput.value : '').toLowerCase().trim();
+    const subjectVal = qbSubjectFilter ? qbSubjectFilter.value : 'all';
+    const labelVal = qbLabelFilter ? qbLabelFilter.value : 'all';
+
+    const filtered = qbStandaloneData.filter(q => {
+      if (subjectVal !== 'all' && (q.subject || '').toLowerCase() !== subjectVal.toLowerCase()) return false;
+      if (labelVal !== 'all' && (q.label || '').toLowerCase() !== labelVal.toLowerCase()) return false;
+      if (query) {
+        const matchQ = (q.questionText || '').toLowerCase().includes(query);
+        const matchHint = (q.hint || '').toLowerCase().includes(query);
+        const matchTopic = (q.topic || '').toLowerCase().includes(query);
+        const matchSubtopic = (q.subtopic || '').toLowerCase().includes(query);
+        const matchOpts = (q.options || []).some(o => (o.text || '').toLowerCase().includes(query));
+        if (!matchQ && !matchHint && !matchTopic && !matchSubtopic && !matchOpts) return false;
+      }
+      return true;
+    });
+
+    qbTotalBadge.textContent = `${filtered.length} Questions`;
+
+    if (filtered.length === 0) {
+      qbStandaloneList.innerHTML = '<div class="empty-state">No matching questions found.</div>';
+      return;
+    }
+
+    qbStandaloneList.innerHTML = '';
+    filtered.forEach((q, idx) => {
       const card = document.createElement('div');
       card.className = 'question-card';
-      
+
       let optionsHtml = '';
       (q.options || []).forEach(opt => {
         optionsHtml += `
@@ -1380,31 +1465,236 @@ Options:
 
       card.innerHTML = `
         <div class="card-header">
-          <span class="question-index"><i class="fa-solid fa-database"></i> QB ID: ${qIndex + 1}</span>
-          <div class="card-meta-inputs" style="gap: 1rem;">
-            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.5rem; border-radius:4px;">${q.label || 'medium'}</span>
-            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.5rem; border-radius:4px;">${q.subject || 'N/A'}</span>
-            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.5rem; border-radius:4px;">${q.topic || 'N/A'}</span>
+          <span class="question-index"><i class="fa-solid fa-database"></i> Question ${idx + 1}</span>
+          <div class="card-meta-inputs" style="gap: 0.5rem;">
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-weight:600; text-transform:uppercase; font-size:0.75rem; color:#818cf8;">${q.label || 'medium'}</span>
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-size:0.75rem;">${q.subject || 'N/A'}</span>
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-size:0.75rem;">${q.topic || 'N/A'}</span>
+            ${q.id ? `<button class="btn btn-icon text-danger delete-qb-item-btn" data-id="${q.id}" title="Delete from Question Bank"><i class="fa-solid fa-trash"></i></button>` : ''}
           </div>
         </div>
         <div class="card-body">
           <div class="form-group">
-            <label>Question Text</label>
+            <label><i class="fa-solid fa-pen-nib"></i> Question Text</label>
             <textarea class="q-text-input" rows="2" disabled>${escapeHtml(q.questionText)}</textarea>
           </div>
+          ${q.hint ? `
           <div class="hint-wrapper">
-            <div class="hint-header">
-              <label>Hint / Explanation</label>
-            </div>
+            <div class="hint-header"><label><i class="fa-solid fa-lightbulb"></i> Hint / Explanation</label></div>
             <textarea class="q-hint-input" rows="3" disabled>${escapeHtml(q.hint)}</textarea>
-          </div>
+          </div>` : ''}
           <div class="options-container" style="margin-top:1rem;">
             ${optionsHtml}
           </div>
         </div>
       `;
-      qbList.appendChild(card);
+      qbStandaloneList.appendChild(card);
+    });
+
+    // Delete question from MongoDB handler
+    document.querySelectorAll('.delete-qb-item-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const qId = e.currentTarget.dataset.id;
+        if (!confirm('Are you sure you want to delete this question from the Question Bank?')) return;
+        
+        try {
+          const res = await fetch(`${API_BASE}/api/questions/${qId}`, { method: 'DELETE' });
+          if (res.ok) {
+            fetchStandaloneQb();
+          } else {
+            const data = await res.json();
+            alert('Delete failed: ' + (data.detail || 'Unknown error'));
+          }
+        } catch(err) {
+          alert('Network error: ' + err.message);
+        }
+      });
     });
   }
 
+
+  // =========================================================================
+  // Single Question Upload Form Logic (Option 3)
+  // =========================================================================
+  const singleQuestionForm = document.getElementById('singleQuestionForm');
+  const singleSubjectSelect = document.getElementById('singleSubjectSelect');
+  const singleTopicSelect = document.getElementById('singleTopicSelect');
+  const singleSubtopicSelect = document.getElementById('singleSubtopicSelect');
+  const singleLabelSelect = document.getElementById('singleLabelSelect');
+  const singleQTextInput = document.getElementById('singleQTextInput');
+  const singleHintInput = document.getElementById('singleHintInput');
+  const singleOptionsList = document.getElementById('singleOptionsList');
+  const singleAddOptBtn = document.getElementById('singleAddOptBtn');
+  const singleResetBtn = document.getElementById('singleResetBtn');
+
+  let singleOptions = [
+    { text: '', isCorrect: true },
+    { text: '', isCorrect: false },
+    { text: '', isCorrect: false },
+    { text: '', isCorrect: false }
+  ];
+
+  function initSingleQForm() {
+    updateSingleTopics();
+    renderSingleOptions();
+  }
+
+  function updateSingleTopics() {
+    const sub = singleSubjectSelect.value;
+    const topics = getTopicsForSubject(sub);
+    singleTopicSelect.innerHTML = '';
+    topics.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      singleTopicSelect.appendChild(opt);
+    });
+    updateSingleSubtopics();
+  }
+
+  function updateSingleSubtopics() {
+    const sub = singleSubjectSelect.value;
+    const top = singleTopicSelect.value;
+    const subtopics = getSubtopicsForTopic(sub, top);
+    singleSubtopicSelect.innerHTML = '';
+    subtopics.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = s;
+      singleSubtopicSelect.appendChild(opt);
+    });
+  }
+
+  if (singleSubjectSelect) singleSubjectSelect.addEventListener('change', updateSingleTopics);
+  if (singleTopicSelect) singleTopicSelect.addEventListener('change', updateSingleSubtopics);
+
+  function renderSingleOptions() {
+    if (!singleOptionsList) return;
+    singleOptionsList.innerHTML = '';
+    singleOptions.forEach((opt, idx) => {
+      const row = document.createElement('div');
+      row.className = `option-row ${opt.isCorrect ? 'correct' : ''}`;
+      row.innerHTML = `
+        <input type="radio" name="single_correct_opt" class="radio-custom" ${opt.isCorrect ? 'checked' : ''} data-idx="${idx}">
+        <input type="text" class="option-input single-opt-txt" value="${escapeHtml(opt.text)}" placeholder="Option ${chr(65+idx)} text..." data-idx="${idx}" required>
+        ${opt.isCorrect ? '<span class="correct-badge"><i class="fa-solid fa-check"></i> Correct</span>' : ''}
+        ${singleOptions.length > 2 ? `<button type="button" class="btn btn-icon text-danger single-del-opt-btn" data-idx="${idx}"><i class="fa-solid fa-xmark"></i></button>` : ''}
+      `;
+      singleOptionsList.appendChild(row);
+    });
+
+    // Option events
+    document.querySelectorAll('input[name="single_correct_opt"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const correctIdx = parseInt(e.target.dataset.idx);
+        singleOptions.forEach((o, i) => o.isCorrect = (i === correctIdx));
+        renderSingleOptions();
+      });
+    });
+
+    document.querySelectorAll('.single-opt-txt').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.dataset.idx);
+        singleOptions[idx].text = e.target.value;
+      });
+    });
+
+    document.querySelectorAll('.single-del-opt-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.currentTarget.dataset.idx);
+        singleOptions.splice(idx, 1);
+        if (!singleOptions.some(o => o.isCorrect) && singleOptions.length > 0) {
+          singleOptions[0].isCorrect = true;
+        }
+        renderSingleOptions();
+      });
+    });
+  }
+
+  if (singleAddOptBtn) {
+    singleAddOptBtn.addEventListener('click', () => {
+      singleOptions.push({ text: '', isCorrect: false });
+      renderSingleOptions();
+    });
+  }
+
+  if (singleResetBtn) {
+    singleResetBtn.addEventListener('click', () => {
+      singleQTextInput.value = '';
+      singleHintInput.value = '';
+      singleOptions = [
+        { text: '', isCorrect: true },
+        { text: '', isCorrect: false },
+        { text: '', isCorrect: false },
+        { text: '', isCorrect: false }
+      ];
+      renderSingleOptions();
+    });
+  }
+
+  if (singleQuestionForm) {
+    singleQuestionForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const qText = singleQTextInput.value.trim();
+      if (!qText) {
+        alert('Please enter question text.');
+        return;
+      }
+
+      if (singleOptions.some(o => !o.text.trim())) {
+        alert('Please fill in text for all options.');
+        return;
+      }
+
+      const questionObj = {
+        subject: singleSubjectSelect.value,
+        topic: singleTopicSelect.value,
+        subtopic: singleSubtopicSelect.value,
+        label: singleLabelSelect.value,
+        questionText: qText,
+        hint: singleHintInput.value.trim(),
+        options: singleOptions.map(o => ({ text: o.text.trim(), isCorrect: o.isCorrect }))
+      };
+
+      const submitBtn = document.getElementById('singleSubmitBtn');
+      const origHtml = submitBtn.innerHTML;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i> Saving...';
+      submitBtn.disabled = true;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/questions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(questionObj)
+        });
+        const result = await res.json();
+        if (res.ok) {
+          alert('Question successfully saved to Question Bank!');
+          singleQTextInput.value = '';
+          singleHintInput.value = '';
+          singleOptions = [
+            { text: '', isCorrect: true },
+            { text: '', isCorrect: false },
+            { text: '', isCorrect: false },
+            { text: '', isCorrect: false }
+          ];
+          renderSingleOptions();
+        } else {
+          alert('Error saving question: ' + (result.detail || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      } finally {
+        submitBtn.innerHTML = origHtml;
+        submitBtn.disabled = false;
+      }
+    });
+  }
+
+  function chr(n) {
+    return String.fromCharCode(n);
+  }
+
 });
+

@@ -1048,3 +1048,49 @@ input[type="text"]:focus, textarea:focus {
   border-top: 1px solid var(--border-color);
   margin-top: 3rem;
 }
+
+/* Primary Navigation Mode Switcher */
+.main-mode-switcher {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.main-mode-btn {
+  flex: 1;
+  min-width: 200px;
+  max-width: 360px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-lg);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  transition: all 0.25s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.main-mode-btn i {
+  font-size: 1.25rem;
+}
+
+.main-mode-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
+.main-mode-btn.active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(99, 102, 241, 0.05));
+  border-color: var(--accent-primary);
+  color: #818cf8;
+  box-shadow: var(--shadow-glow);
+}

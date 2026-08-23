@@ -259,8 +259,24 @@
   <!-- Main Container -->
   <main class="app-container hidden" id="mainAppContainer">
     
-    <!-- Hero / Upload Section -->
-    <section class="upload-section">
+    <!-- Top 3 Primary Navigation Options -->
+    <div class="main-mode-switcher">
+      <button class="main-mode-btn active" id="modeExtractBtn">
+        <i class="fa-solid fa-file-pdf" style="color: #ef4444;"></i>
+        <span>1. Extract PDF / DOCX</span>
+      </button>
+      <button class="main-mode-btn" id="modeQbBtn">
+        <i class="fa-solid fa-database" style="color: #6366f1;"></i>
+        <span>2. View Question Bank</span>
+      </button>
+      <button class="main-mode-btn" id="modeAddSingleBtn">
+        <i class="fa-solid fa-square-plus" style="color: #10b981;"></i>
+        <span>3. Add Single Question</span>
+      </button>
+    </div>
+
+    <!-- Hero / Upload Section (Option 1) -->
+    <section class="upload-section" id="uploadSection">
       <div class="hero-card">
         <!-- Subject Selection -->
         <div class="subject-picker-container">
@@ -417,6 +433,119 @@
           <pre class="json-code-box"><code id="jsonCodeDisplay">[]</code></pre>
         </div>
 
+      </div>
+    </section>
+
+    <!-- Standalone Question Bank Section (Option 2) -->
+    <section class="qb-standalone-section hidden" id="qbStandaloneSection">
+      <div class="workspace-header">
+        <div class="workspace-title">
+          <h3><i class="fa-solid fa-database" style="color: #6366f1;"></i> MongoDB Question Bank</h3>
+          <span class="count-badge" id="qbTotalBadge">0 Questions</span>
+        </div>
+        <div class="action-buttons-group">
+          <button class="btn btn-outline" id="refreshQbBtn">
+            <i class="fa-solid fa-rotate-right"></i> Refresh Bank
+          </button>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <div class="search-input-wrapper" style="flex: 1;">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="qbSearchInput" placeholder="Filter question bank by text, topic, or subtopic...">
+        </div>
+        <select id="qbSubjectFilter" class="meta-select" style="padding: 0.5rem 0.8rem;">
+          <option value="all">All Subjects</option>
+          <option value="English">English</option>
+          <option value="Quants">Quants</option>
+        </select>
+        <select id="qbLabelFilter" class="meta-select" style="padding: 0.5rem 0.8rem;">
+          <option value="all">All Difficulties</option>
+          <option value="easy">Easy</option>
+          <option value="medium">Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+
+      <div class="editor-container">
+        <div class="cards-view">
+          <div class="questions-list" id="qbStandaloneList">
+            <!-- Question Bank cards populated dynamically -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Single Question Upload Form Section (Option 3) -->
+    <section class="single-q-section hidden" id="singleQSection">
+      <div class="hero-card" style="max-width: 900px; margin: 0 auto;">
+        <div class="hero-header">
+          <h2><i class="fa-solid fa-square-plus" style="color: #10b981;"></i> Add Single Question to Question Bank</h2>
+          <p class="modal-desc">Fill out the question details below to add a single question directly into your MongoDB Question Bank.</p>
+        </div>
+
+        <form id="singleQuestionForm">
+          <!-- Meta Fields Row -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+            <div class="form-group">
+              <label><i class="fa-solid fa-graduation-cap"></i> Subject</label>
+              <select id="singleSubjectSelect" class="meta-select" style="width: 100%; padding: 0.6rem;">
+                <option value="English">English</option>
+                <option value="Quants">Quants</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label><i class="fa-solid fa-folder"></i> Topic</label>
+              <select id="singleTopicSelect" class="meta-select" style="width: 100%; padding: 0.6rem;"></select>
+            </div>
+            <div class="form-group">
+              <label><i class="fa-solid fa-folder-tree"></i> Subtopic</label>
+              <select id="singleSubtopicSelect" class="meta-select" style="width: 100%; padding: 0.6rem;"></select>
+            </div>
+            <div class="form-group">
+              <label><i class="fa-solid fa-signal"></i> Difficulty</label>
+              <select id="singleLabelSelect" class="meta-select" style="width: 100%; padding: 0.6rem;">
+                <option value="easy">Easy</option>
+                <option value="medium" selected>Medium</option>
+                <option value="hard">Hard</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Question Text -->
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label><i class="fa-solid fa-pen-nib"></i> Question Text (LaTeX supported $...$)</label>
+            <textarea id="singleQTextInput" rows="3" class="q-text-input" placeholder="Type or paste question text here..." required></textarea>
+          </div>
+
+          <!-- Hint Text -->
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label><i class="fa-solid fa-lightbulb"></i> Hint / Explanation</label>
+            <textarea id="singleHintInput" rows="3" class="q-hint-input" placeholder="Type step-by-step hint or explanation..."></textarea>
+          </div>
+
+          <!-- Options Container -->
+          <div class="form-group" style="margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <label><i class="fa-solid fa-list-ol"></i> Options & Correct Answer</label>
+              <button type="button" class="btn btn-sm btn-outline" id="singleAddOptBtn">
+                <i class="fa-solid fa-plus"></i> Add Option
+              </button>
+            </div>
+            <div id="singleOptionsList" class="options-container">
+              <!-- Dynamic option rows -->
+            </div>
+          </div>
+
+          <!-- Submit Actions -->
+          <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+            <button type="button" class="btn btn-secondary" id="singleResetBtn">Reset Form</button>
+            <button type="submit" class="btn btn-success btn-lg" id="singleSubmitBtn">
+              <i class="fa-solid fa-cloud-arrow-up"></i> Save to Question Bank
+            </button>
+          </div>
+        </form>
       </div>
     </section>
 

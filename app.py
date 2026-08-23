@@ -191,8 +191,12 @@ async def get_questions():
     db = get_db()
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
-    questions_cursor = db.question_bank.find({}, {"_id": 0})
-    questions = await questions_cursor.to_list(length=10000)
+    questions_cursor = db.question_bank.find({})
+    questions = []
+    async for doc in questions_cursor:
+        doc["id"] = str(doc["_id"])
+        del doc["_id"]
+        questions.append(doc)
     return {"status": "success", "questions": questions}
 
 @app.post("/api/questions")
@@ -202,8 +206,8 @@ async def add_question(request: Request):
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
     question_data = await request.json()
-    await db.question_bank.insert_one(question_data)
-    # Remove _id before returning to avoid JSON serialization issues
+    result = await db.question_bank.insert_one(question_data)
+    question_data["id"] = str(result.inserted_id)
     if "_id" in question_data:
         del question_data["_id"]
     return {"status": "success", "message": "Question added to bank", "question": question_data}
@@ -221,6 +225,22 @@ async def add_questions_bulk(request: Request):
     
     await db.question_bank.insert_many(questions)
     return {"status": "success", "message": f"{len(questions)} questions added to bank"}
+
+@app.delete("/api/questions/{question_id}")
+async def delete_question(question_id: str):
+    """Delete a question from the Question Bank by ID."""
+    from bson.objectid import ObjectId
+    db = get_db()
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    try:
+        res = await db.question_bank.delete_one({"_id": ObjectId(question_id)})
+        if res.deleted_count == 1:
+            return {"status": "success", "message": "Question deleted"}
+        else:
+            raise HTTPException(status_code=404, detail="Question not found")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 # Serve static frontend files (if static folder exists)
 if os.path.exists("static"):
