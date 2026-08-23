@@ -1760,11 +1760,30 @@ Options:
 
   let generatedMockQuestions = [];
 
+  const mockEnglishCountVal = document.getElementById('mockEnglishCountVal');
+  const mockQuantsCountVal = document.getElementById('mockQuantsCountVal');
+  const mockEasyPctVal = document.getElementById('mockEasyPctVal');
+  const mockMediumPctVal = document.getElementById('mockMediumPctVal');
+  const mockHardPctVal = document.getElementById('mockHardPctVal');
+
   function initMockGeneratorForm() {
+    updateSliderBadges();
     updateDiffTotalBadge();
   }
 
+  function updateSliderBadges() {
+    if (mockEnglishCountVal && mockEnglishCount) mockEnglishCountVal.textContent = `${mockEnglishCount.value} Questions`;
+    if (mockQuantsCountVal && mockQuantsCount) mockQuantsCountVal.textContent = `${mockQuantsCount.value} Questions`;
+    if (mockEasyPctVal && mockEasyPct) mockEasyPctVal.textContent = `${mockEasyPct.value}%`;
+    if (mockMediumPctVal && mockMediumPct) mockMediumPctVal.textContent = `${mockMediumPct.value}%`;
+    if (mockHardPctVal && mockHardPct) mockHardPctVal.textContent = `${mockHardPct.value}%`;
+  }
+
+  if (mockEnglishCount) mockEnglishCount.addEventListener('input', updateSliderBadges);
+  if (mockQuantsCount) mockQuantsCount.addEventListener('input', updateSliderBadges);
+
   function updateDiffTotalBadge() {
+    updateSliderBadges();
     if (!diffTotalBadge) return;
     const easy = parseFloat(mockEasyPct.value) || 0;
     const med = parseFloat(mockMediumPct.value) || 0;

@@ -566,38 +566,53 @@
         <form id="mockGeneratorForm">
           <!-- Subject Question Counts Container -->
           <div style="background: var(--bg-input); padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1.5rem;">
-            <h4 style="margin-bottom: 0.8rem; font-size: 0.95rem; color: var(--text-primary);"><i class="fa-solid fa-graduation-cap" style="color: #6366f1;"></i> 1. Number of Questions per Subject</h4>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+            <h4 style="margin-bottom: 1rem; font-size: 0.95rem; color: var(--text-primary);"><i class="fa-solid fa-graduation-cap" style="color: #6366f1;"></i> 1. Number of Questions per Subject</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem;">
               <div class="form-group">
-                <label>English Questions:</label>
-                <input type="number" id="mockEnglishCount" class="sm-input" value="10" min="0" max="100" style="width: 100%; padding: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                  <label>English Questions:</label>
+                  <span class="range-val-badge" id="mockEnglishCountVal">10 Questions</span>
+                </div>
+                <input type="range" id="mockEnglishCount" class="range-slider" value="10" min="0" max="50" step="1">
               </div>
               <div class="form-group">
-                <label>Quants Questions:</label>
-                <input type="number" id="mockQuantsCount" class="sm-input" value="10" min="0" max="100" style="width: 100%; padding: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                  <label>Quants Questions:</label>
+                  <span class="range-val-badge" id="mockQuantsCountVal">10 Questions</span>
+                </div>
+                <input type="range" id="mockQuantsCount" class="range-slider" value="10" min="0" max="50" step="1">
               </div>
             </div>
           </div>
 
           <!-- Difficulty Allocation (%) Container -->
           <div style="background: var(--bg-input); padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1.5rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
               <h4 style="font-size: 0.95rem; color: var(--text-primary);"><i class="fa-solid fa-sliders" style="color: #10b981;"></i> 2. Difficulty Allocation (% of 100%)</h4>
               <span id="diffTotalBadge" class="badge" style="background: rgba(16,185,129,0.2); color: #10b981; padding: 0.3rem 0.75rem; border-radius: 20px; font-weight: 700;">Total: 100%</span>
             </div>
             
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem;">
               <div class="form-group">
-                <label>Easy %:</label>
-                <input type="number" id="mockEasyPct" class="sm-input mock-diff-pct" value="30" min="0" max="100" style="width: 100%; padding: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                  <label>Easy %:</label>
+                  <span class="range-val-badge" id="mockEasyPctVal">30%</span>
+                </div>
+                <input type="range" id="mockEasyPct" class="range-slider mock-diff-pct" value="30" min="0" max="100" step="5">
               </div>
               <div class="form-group">
-                <label>Medium %:</label>
-                <input type="number" id="mockMediumPct" class="sm-input mock-diff-pct" value="50" min="0" max="100" style="width: 100%; padding: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                  <label>Medium %:</label>
+                  <span class="range-val-badge" id="mockMediumPctVal">50%</span>
+                </div>
+                <input type="range" id="mockMediumPct" class="range-slider mock-diff-pct" value="50" min="0" max="100" step="5">
               </div>
               <div class="form-group">
-                <label>Hard %:</label>
-                <input type="number" id="mockHardPct" class="sm-input mock-diff-pct" value="20" min="0" max="100" style="width: 100%; padding: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                  <label>Hard %:</label>
+                  <span class="range-val-badge" id="mockHardPctVal">20%</span>
+                </div>
+                <input type="range" id="mockHardPct" class="range-slider mock-diff-pct" value="20" min="0" max="100" step="5">
               </div>
             </div>
           </div>
