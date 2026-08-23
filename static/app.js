@@ -643,6 +643,7 @@ Options:
 
     const customPrompt = getSubjectPrompt(selectedSubject);
     const useAiTopics = useAiTopicsCheckbox ? useAiTopicsCheckbox.checked : false;
+    const useAiExtraction = document.getElementById('useAiExtractionCheckbox') ? document.getElementById('useAiExtractionCheckbox').checked : false;
 
     const formData = new FormData();
     formData.append('file', selectedFile);
@@ -650,6 +651,7 @@ Options:
     formData.append('llmProvider', llmProvider);
     formData.append('model', abacusModel);
     formData.append('useAiTopics', useAiTopics ? 'true' : 'false');
+    formData.append('useAiExtraction', useAiExtraction ? 'true' : 'false');
     if (customPrompt) formData.append('customPrompt', customPrompt);
     if (apiKey) formData.append('apiKey', apiKey);
     if (abacusApiKey) formData.append('abacusApiKey', abacusApiKey);

@@ -684,12 +684,13 @@ def parse_pdf_questions(
     provider: str = "gemini",
     model: str = "gpt-4o",
     use_ai_topics: bool = False,
+    use_ai_extraction: bool = False,
     custom_prompt: str = None
 ) -> list:
     """
     Parses a question paper PDF or DOCX into JSON.
-    When API keys are available, Stage 1 uses AI-only extraction directly from the PDF text.
-    If no API key is provided or AI extraction returns 0 questions, local regex parser runs as fallback.
+    When API keys are available and use_ai_extraction is True, Stage 1 uses AI-only extraction directly from the PDF text.
+    If no API key is provided, use_ai_extraction is False, or AI extraction returns 0 questions, local regex parser runs as fallback.
     """
     text = extract_raw_text(file_path)
     if not text or not text.strip():
@@ -700,9 +701,9 @@ def parse_pdf_questions(
     has_abacus_key = bool(abacus_key and abacus_key.strip()) or bool(os.environ.get("ABACUS_API_KEY", "").strip())
 
     # =========================================================================
-    # STAGE 1: AI-ONLY EXTRACTION (PRIMARY STAGE WHEN API KEYS ARE AVAILABLE)
+    # STAGE 1: AI-ONLY EXTRACTION (PRIMARY STAGE WHEN ENABLED AND API KEYS ARE AVAILABLE)
     # =========================================================================
-    if has_gemini_key or has_abacus_key:
+    if use_ai_extraction and (has_gemini_key or has_abacus_key):
         ai_questions = []
         if provider_clean == "abacus" or (has_abacus_key and not has_gemini_key):
             ai_questions = parse_with_abacus_fallback(text, subject=subject, abacus_key=abacus_key, model=model)

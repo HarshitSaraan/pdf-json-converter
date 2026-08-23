@@ -270,7 +270,13 @@
             <!-- AI Topic Classification Toggle -->
             <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer; color: var(--text-secondary); background: var(--bg-input); padding: 0.35rem 0.75rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);" title="Check to use AI LLM for 100% topic classification precision (uses credits). Leave unchecked for free 0-credit mapping.">
               <input type="checkbox" id="useAiTopicsCheckbox">
-              <span><i class="fa-solid fa-brain" style="color: #6366f1;"></i> AI Topic Mapping (LLM)</span>
+              <span><i class="fa-solid fa-brain" style="color: #6366f1;"></i> AI Topic Mapping</span>
+            </label>
+            
+            <!-- AI Document Extraction Toggle -->
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer; color: var(--text-secondary); background: var(--bg-input); padding: 0.35rem 0.75rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);" title="Check to use AI LLM to extract questions directly from the document (improves parsing accuracy).">
+              <input type="checkbox" id="useAiExtractionCheckbox">
+              <span><i class="fa-solid fa-robot" style="color: #6366f1;"></i> AI Extraction</span>
             </label>
           </div>
           

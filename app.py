@@ -116,6 +116,7 @@ async def parse_document_endpoint(
     llmProvider: str = Form("gemini"),
     model: str = Form("gpt-4o"),
     useAiTopics: bool = Form(False),
+    useAiExtraction: bool = Form(False),
     customPrompt: str = Form(None)
 ):
     filename_lower = file.filename.lower()
@@ -141,6 +142,7 @@ async def parse_document_endpoint(
             provider=llmProvider.strip() if llmProvider else "gemini",
             model=model.strip() if model else "gpt-4o",
             use_ai_topics=useAiTopics,
+            use_ai_extraction=useAiExtraction,
             custom_prompt=customPrompt.strip() if customPrompt else None
         )
     except ValueError as ve:
