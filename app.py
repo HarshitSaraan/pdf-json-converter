@@ -4,10 +4,18 @@ import tempfile
 from fastapi import FastAPI, UploadFile, File, Form, Response, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from pdf_parser import parse_pdf_questions
 from gemini_service import generate_ai_hint
+from database import connect_to_mongo, close_mongo_connection, get_db
 
-app = FastAPI(title="PDF & DOCX Question JSON Converter", version="3.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await connect_to_mongo()
+    yield
+    await close_mongo_connection()
+
+app = FastAPI(title="PDF & DOCX Question JSON Converter", version="3.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -176,6 +184,43 @@ async def download_json_endpoint(request: Request):
         "Content-Disposition": 'attachment; filename="questions.json"'
     }
     return Response(content=json_bytes, media_type="application/json", headers=headers)
+
+@app.get("/api/questions")
+async def get_questions():
+    """Fetch all questions from the Question Bank."""
+    db = get_db()
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    questions_cursor = db.question_bank.find({}, {"_id": 0})
+    questions = await questions_cursor.to_list(length=10000)
+    return {"status": "success", "questions": questions}
+
+@app.post("/api/questions")
+async def add_question(request: Request):
+    """Add a single question to the Question Bank."""
+    db = get_db()
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    question_data = await request.json()
+    await db.question_bank.insert_one(question_data)
+    # Remove _id before returning to avoid JSON serialization issues
+    if "_id" in question_data:
+        del question_data["_id"]
+    return {"status": "success", "message": "Question added to bank", "question": question_data}
+
+@app.post("/api/questions/bulk")
+async def add_questions_bulk(request: Request):
+    """Add multiple questions to the Question Bank."""
+    db = get_db()
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    data = await request.json()
+    questions = data.get("questions", [])
+    if not questions:
+        raise HTTPException(status_code=400, detail="No questions provided")
+    
+    await db.question_bank.insert_many(questions)
+    return {"status": "success", "message": f"{len(questions)} questions added to bank"}
 
 # Serve static frontend files (if static folder exists)
 if os.path.exists("static"):

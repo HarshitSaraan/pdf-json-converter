@@ -369,6 +369,7 @@ For each question:
 4. Classify the question into the exact "topic" and "subtopic" from this official taxonomy:
 Taxonomy JSON:
 {tax_str}
+5. Assign a difficulty "label" to the question based on its complexity: "easy", "medium", or "hard".
 
 Return ONLY a valid JSON array of objects with this exact structure:
 [
@@ -377,6 +378,7 @@ Return ONLY a valid JSON array of objects with this exact structure:
     "hint": "Step-by-step hint, solution, or explanation",
     "topic": "TopicName from taxonomy",
     "subtopic": "SubtopicName from taxonomy",
+    "label": "medium",
     "options": [
       {{"text": "Option A text", "isCorrect": false}},
       {{"text": "Option B text", "isCorrect": true}},
@@ -451,6 +453,7 @@ Document Snippet:
                                     "hint": h_text,
                                     "topic": q.get("topic") or t_top,
                                     "subtopic": q.get("subtopic") or t_sub,
+                                    "label": q.get("label", "medium"),
                                     "options": opts
                                 })
                             parsed_chunk = True
@@ -499,6 +502,7 @@ For each question:
 4. Classify the question into the exact "topic" and "subtopic" from this official taxonomy:
 Taxonomy JSON:
 {tax_str}
+5. Assign a difficulty "label" to the question based on its complexity: "easy", "medium", or "hard".
 
 Return ONLY a valid JSON array of objects with this exact structure:
 [
@@ -507,6 +511,7 @@ Return ONLY a valid JSON array of objects with this exact structure:
     "hint": "Step-by-step hint, solution, or explanation",
     "topic": "TopicName from taxonomy",
     "subtopic": "SubtopicName from taxonomy",
+    "label": "medium",
     "options": [
       {{"text": "Option A text", "isCorrect": false}},
       {{"text": "Option B text", "isCorrect": true}},
@@ -575,6 +580,7 @@ Document Text:
                                         "hint": h_text,
                                         "topic": q.get("topic") or t_top,
                                         "subtopic": q.get("subtopic") or t_sub,
+                                        "label": q.get("label", "medium"),
                                         "options": opts
                                     })
                                 parsed_chunk = True
@@ -849,6 +855,7 @@ def parse_pdf_questions(
                 "hint": hint,
                 "topic": default_topic or auto_top,
                 "subtopic": default_subtopic or auto_sub,
+                "label": "medium",
                 "options": formatted_options
             })
 

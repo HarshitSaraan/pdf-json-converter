@@ -349,7 +349,10 @@
           <!-- View Toggle -->
           <div class="segmented-control">
             <button class="segment-btn active" id="viewCardsBtn">
-              <i class="fa-solid fa-border-all"></i> Cards Editor
+              <i class="fa-solid fa-file-pdf"></i> Current File
+            </button>
+            <button class="segment-btn" id="viewQbBtn">
+              <i class="fa-solid fa-database"></i> Question Bank
             </button>
             <button class="segment-btn" id="viewJsonBtn">
               <i class="fa-solid fa-code"></i> JSON Raw
@@ -380,7 +383,10 @@
           <input type="text" id="bulkTopicInput" placeholder="Set topic for all..." class="sm-input">
           <button class="btn btn-sm btn-outline" id="applyBulkTopicBtn">Apply Topic</button>
           <button class="btn btn-sm btn-primary" id="autoGenerateAllHintsBtn" title="Generate AI hints for questions that do not have one">
-            <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Missing Hints (AI)
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Missing Hints
+          </button>
+          <button class="btn btn-sm btn-success" id="addAllToQbBtn" title="Save all extracted questions to Database">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Push All to DB
           </button>
         </div>
       </div>
@@ -392,6 +398,13 @@
         <div class="cards-view" id="cardsView">
           <div class="questions-list" id="questionsList">
             <!-- Question Cards populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Question Bank View -->
+        <div class="cards-view hidden" id="qbView">
+          <div class="questions-list" id="qbList">
+            <!-- Question Bank Cards populated dynamically -->
           </div>
         </div>
 

@@ -23,10 +23,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const questionCountBadge = document.getElementById('questionCountBadge');
   
   const viewCardsBtn = document.getElementById('viewCardsBtn');
+  const viewQbBtn = document.getElementById('viewQbBtn');
   const viewJsonBtn = document.getElementById('viewJsonBtn');
   const cardsView = document.getElementById('cardsView');
+  const qbView = document.getElementById('qbView');
+  const qbList = document.getElementById('qbList');
   const jsonView = document.getElementById('jsonView');
   const jsonCodeDisplay = document.getElementById('jsonCodeDisplay');
+  const addAllToQbBtn = document.getElementById('addAllToQbBtn');
   
   const searchInput = document.getElementById('searchInput');
   const bulkTopicInput = document.getElementById('bulkTopicInput');
@@ -803,10 +807,20 @@ Options:
         subtopicSelectOptionsHtml += `<option value="${s}" ${s === currentSub ? 'selected' : ''}>${s}</option>`;
       });
 
+      // Label Options
+      const labels = ['easy', 'medium', 'hard'];
+      let labelSelectOptionsHtml = '';
+      labels.forEach(l => {
+        labelSelectOptionsHtml += `<option value="${l}" ${l === q.label ? 'selected' : ''}>${l.charAt(0).toUpperCase() + l.slice(1)}</option>`;
+      });
+
       card.innerHTML = `
         <div class="card-header">
           <span class="question-index"><i class="fa-solid fa-circle-question"></i> Question ${qIndex + 1}</span>
           <div class="card-meta-inputs">
+            <select class="meta-select q-label-select" data-qindex="${qIndex}" title="Difficulty">
+              ${labelSelectOptionsHtml}
+            </select>
             <select class="meta-select q-subject-select" data-qindex="${qIndex}" title="Subject">
               ${subjectSelectOptionsHtml}
             </select>
@@ -816,6 +830,9 @@ Options:
             <select class="meta-select q-subtopic-select" data-qindex="${qIndex}" title="Subtopic">
               ${subtopicSelectOptionsHtml}
             </select>
+            <button class="btn btn-sm btn-success add-to-qb-btn" data-qindex="${qIndex}" title="Save to Question Bank DB">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+            </button>
             <button class="btn btn-icon text-danger delete-q-btn" data-qindex="${qIndex}" title="Delete Question">
               <i class="fa-solid fa-trash"></i>
             </button>
@@ -1010,6 +1027,50 @@ Options:
         });
       });
     });
+    document.querySelectorAll('.q-label-select').forEach(el => {
+      el.addEventListener('change', (e) => {
+        const qIndex = parseInt(e.target.dataset.qindex);
+        questionsData[qIndex].label = e.target.value;
+        syncJsonCodeDisplay();
+      });
+    });
+
+    document.querySelectorAll('.add-to-qb-btn').forEach(el => {
+      el.addEventListener('click', async (e) => {
+        const qIndex = parseInt(e.currentTarget.dataset.qindex);
+        const qData = questionsData[qIndex];
+        const btn = e.currentTarget;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i>';
+        btn.disabled = true;
+
+        try {
+          const response = await fetch(`${API_BASE}/api/questions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(qData)
+          });
+          const result = await response.json();
+          if (response.ok) {
+            btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline');
+          } else {
+            alert('Error adding to DB: ' + (result.detail || 'Unknown error'));
+            btn.innerHTML = originalHtml;
+          }
+        } catch (error) {
+          alert('Network error: ' + error.message);
+          btn.innerHTML = originalHtml;
+        } finally {
+          setTimeout(() => {
+            if (btn.innerHTML !== '<i class="fa-solid fa-check"></i>') {
+                btn.disabled = false;
+            }
+          }, 1000);
+        }
+      });
+    });
 
     document.querySelectorAll('.generate-single-ai-hint-btn').forEach(btn => {
       btn.addEventListener('click', async (e) => {
@@ -1165,19 +1226,33 @@ Options:
     renderQuestions();
   });
 
-  // View Switcher (Cards vs JSON)
+  // View Switcher (Cards vs QB vs JSON)
   viewCardsBtn.addEventListener('click', () => {
     viewCardsBtn.classList.add('active');
+    viewQbBtn.classList.remove('active');
     viewJsonBtn.classList.remove('active');
     cardsView.classList.remove('hidden');
+    qbView.classList.add('hidden');
     jsonView.classList.add('hidden');
+  });
+
+  viewQbBtn.addEventListener('click', () => {
+    viewQbBtn.classList.add('active');
+    viewCardsBtn.classList.remove('active');
+    viewJsonBtn.classList.remove('active');
+    qbView.classList.remove('hidden');
+    cardsView.classList.add('hidden');
+    jsonView.classList.add('hidden');
+    fetchQuestionBank(); // load QB data
   });
 
   viewJsonBtn.addEventListener('click', () => {
     viewJsonBtn.classList.add('active');
     viewCardsBtn.classList.remove('active');
+    viewQbBtn.classList.remove('active');
     jsonView.classList.remove('hidden');
     cardsView.classList.add('hidden');
+    qbView.classList.add('hidden');
     syncJsonCodeDisplay();
   });
 
@@ -1237,6 +1312,99 @@ Options:
   function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  addAllToQbBtn.addEventListener('click', async () => {
+    if (questionsData.length === 0) {
+      alert("No questions to add.");
+      return;
+    }
+    const origHtml = addAllToQbBtn.innerHTML;
+    addAllToQbBtn.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i> Pushing...';
+    addAllToQbBtn.disabled = true;
+    try {
+      const response = await fetch(`${API_BASE}/api/questions/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questions: questionsData })
+      });
+      const result = await response.json();
+      if (response.ok) {
+        alert(result.message);
+      } else {
+        alert('Error: ' + result.detail);
+      }
+    } catch (err) {
+      alert('Network error: ' + err.message);
+    } finally {
+      addAllToQbBtn.innerHTML = origHtml;
+      addAllToQbBtn.disabled = false;
+    }
+  });
+
+  async function fetchQuestionBank() {
+    qbList.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner spin-icon"></i> Loading Question Bank...</div>';
+    try {
+      const response = await fetch(`${API_BASE}/api/questions`);
+      const result = await response.json();
+      if (response.ok) {
+        renderQuestionBank(result.questions || []);
+      } else {
+        qbList.innerHTML = `<div class="empty-state text-danger">Error: ${result.detail}</div>`;
+      }
+    } catch (err) {
+      qbList.innerHTML = `<div class="empty-state text-danger">Network Error: ${err.message}</div>`;
+    }
+  }
+
+  function renderQuestionBank(qbQuestions) {
+    if (!qbQuestions || qbQuestions.length === 0) {
+      qbList.innerHTML = '<div class="empty-state">Question bank is empty.</div>';
+      return;
+    }
+    qbList.innerHTML = '';
+    qbQuestions.forEach((q, qIndex) => {
+      const card = document.createElement('div');
+      card.className = 'question-card';
+      
+      let optionsHtml = '';
+      (q.options || []).forEach(opt => {
+        optionsHtml += `
+          <div class="option-row ${opt.isCorrect ? 'correct' : ''}">
+            <input type="radio" class="radio-custom" ${opt.isCorrect ? 'checked' : ''} disabled>
+            <input type="text" class="option-input" value="${escapeHtml(opt.text)}" disabled>
+            ${opt.isCorrect ? '<span class="correct-badge"><i class="fa-solid fa-check"></i> Correct</span>' : ''}
+          </div>
+        `;
+      });
+
+      card.innerHTML = `
+        <div class="card-header">
+          <span class="question-index"><i class="fa-solid fa-database"></i> QB ID: ${qIndex + 1}</span>
+          <div class="card-meta-inputs" style="gap: 1rem;">
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.5rem; border-radius:4px;">${q.label || 'medium'}</span>
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.5rem; border-radius:4px;">${q.subject || 'N/A'}</span>
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.5rem; border-radius:4px;">${q.topic || 'N/A'}</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="form-group">
+            <label>Question Text</label>
+            <textarea class="q-text-input" rows="2" disabled>${escapeHtml(q.questionText)}</textarea>
+          </div>
+          <div class="hint-wrapper">
+            <div class="hint-header">
+              <label>Hint / Explanation</label>
+            </div>
+            <textarea class="q-hint-input" rows="3" disabled>${escapeHtml(q.hint)}</textarea>
+          </div>
+          <div class="options-container" style="margin-top:1rem;">
+            ${optionsHtml}
+          </div>
+        </div>
+      `;
+      qbList.appendChild(card);
+    });
   }
 
 });
