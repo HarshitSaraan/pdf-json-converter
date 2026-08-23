@@ -743,7 +743,7 @@ def parse_pdf_questions(
         sol_parts = []
         correct_letter = ""
 
-        ans_inline_match = re.search(r'\(?Ans(?:wer)?:\s*([A-E0-9a-zA-Z]+)\)?', body, re.IGNORECASE)
+        ans_inline_match = re.search(r'\(?(?:Ans|Answer|Correct Option):\s*([A-E0-9a-zA-Z]+)\)?', body, re.IGNORECASE)
         if ans_inline_match:
             ans_val = ans_inline_match.group(1).strip().upper()
             if ans_val in ['A', 'B', 'C', 'D', 'E']:
@@ -772,7 +772,7 @@ def parse_pdf_questions(
             clean_body = clean_body[:exp_match.start()].strip()
 
         if not correct_letter:
-            ans_match = re.search(r'(?:Correct Answer|Answer|Key):\s*([A-E])\)?\s*(.*)', clean_body, re.IGNORECASE)
+            ans_match = re.search(r'(?:Correct Answer|Correct Option|Answer|Key):\s*([A-E])\)?\s*(.*)', clean_body, re.IGNORECASE)
             if ans_match:
                 correct_letter = ans_match.group(1).upper()
                 ans_extra = ans_match.group(2).strip()
