@@ -881,22 +881,27 @@ Options:
     attachCardEventListeners();
   }
 
+  function renderMathInContainer(container, rawText) {
+    if (!container) return;
+    container.innerHTML = rawText || '';
+    if (window.renderMathInElement) {
+      try {
+        renderMathInElement(container, {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+          ],
+          throwOnError: false
+        });
+      } catch(e) {}
+    }
+  }
+
   function renderMathPreviews() {
     questionsData.forEach((q, idx) => {
       const previewEl = document.getElementById(`math_preview_${idx}`);
       if (previewEl) {
-        previewEl.innerHTML = q.questionText || '<i>Empty question</i>';
-        if (window.renderMathInElement) {
-          try {
-            renderMathInElement(previewEl, {
-              delimiters: [
-                {left: '$$', right: '$$', display: true},
-                {left: '$', right: '$', display: false}
-              ],
-              throwOnError: false
-            });
-          } catch(e) {}
-        }
+        renderMathInContainer(previewEl, q.questionText || '<i>Empty question</i>');
       }
     });
   }
@@ -1477,17 +1482,25 @@ Options:
           <div class="form-group">
             <label><i class="fa-solid fa-pen-nib"></i> Question Text</label>
             <textarea class="q-text-input" rows="2" disabled>${escapeHtml(q.questionText)}</textarea>
+            <div class="latex-preview-box math-render qb-math-q" style="margin-top:0.4rem;"></div>
           </div>
           ${q.hint ? `
           <div class="hint-wrapper">
             <div class="hint-header"><label><i class="fa-solid fa-lightbulb"></i> Hint / Explanation</label></div>
             <textarea class="q-hint-input" rows="3" disabled>${escapeHtml(q.hint)}</textarea>
+            <div class="latex-preview-box math-render qb-math-h" style="margin-top:0.4rem;"></div>
           </div>` : ''}
           <div class="options-container" style="margin-top:1rem;">
             ${optionsHtml}
           </div>
         </div>
       `;
+      
+      const qBox = card.querySelector('.qb-math-q');
+      if (qBox) renderMathInContainer(qBox, q.questionText);
+      const hBox = card.querySelector('.qb-math-h');
+      if (hBox && q.hint) renderMathInContainer(hBox, q.hint);
+
       qbStandaloneList.appendChild(card);
     });
 
@@ -1534,10 +1547,26 @@ Options:
     { text: '', isCorrect: false }
   ];
 
+  const singleQTextPreview = document.getElementById('singleQTextPreview');
+  const singleHintPreview = document.getElementById('singleHintPreview');
+
   function initSingleQForm() {
     updateSingleTopics();
     renderSingleOptions();
+    updateSinglePreviews();
   }
+
+  function updateSinglePreviews() {
+    if (singleQTextInput && singleQTextPreview) {
+      renderMathInContainer(singleQTextPreview, singleQTextInput.value.trim());
+    }
+    if (singleHintInput && singleHintPreview) {
+      renderMathInContainer(singleHintPreview, singleHintInput.value.trim());
+    }
+  }
+
+  if (singleQTextInput) singleQTextInput.addEventListener('input', updateSinglePreviews);
+  if (singleHintInput) singleHintInput.addEventListener('input', updateSinglePreviews);
 
   function updateSingleTopics() {
     const sub = singleSubjectSelect.value;
