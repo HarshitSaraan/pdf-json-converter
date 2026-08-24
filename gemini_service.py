@@ -200,157 +200,26 @@ def build_prompt(question_text: str, opts_str: str, subject: str = "English", cu
     else:
         return ENGLISH_PROMPT_TEMPLATE.replace("{question_text}", question_text).replace("{opts_str}", opts_str)
 
-def generate_ai_hint_abacus(question_text: str, options: list = None, abacus_key: str = None, subject: str = "English", model: str = "gpt-4o", custom_prompt: str = None) -> str:
-    """
-    Generates a complete solution and explanation for a question using Abacus.AI API.
-    Supports RouteLLM OpenAI-compatible endpoints as well as direct Abacus REST endpoints.
-    """
-    key = abacus_key if abacus_key and abacus_key.strip() else os.environ.get("ABACUS_API_KEY", "")
-    
-    if not key or not key.strip():
-        raise ValueError("Abacus.AI API Key is missing. Click 'AI Settings' in top navbar to enter your Abacus.AI API key.")
-
-    key = key.strip()
-    options = options or []
-    
-    opts_lines = []
-    if options:
-        for idx, opt in enumerate(options):
-            if isinstance(opt, dict):
-                opt_text = opt.get('text', '')
-                is_correct = opt.get('isCorrect', False)
-            else:
-                opt_text = str(opt)
-                is_correct = False
-            letter = chr(65 + idx)
-            correct_tag = " (Correct Option)" if is_correct else ""
-            opts_lines.append(f"Option {letter}: {opt_text}{correct_tag}")
-        opts_str = "\n".join(opts_lines)
-    else:
-        opts_str = "No options provided"
-
-    # Select subject-specific prompt template or custom prompt
-    prompt = build_prompt(question_text=question_text, opts_str=opts_str, subject=subject, custom_prompt=custom_prompt)
-
-    model_name = model if model and model.strip() else "gpt-4o"
-
-    # 1. Try RouteLLM / OpenAI-compatible endpoint
-    routellm_endpoints = [
-        "https://routellm.abacus.ai/v1/chat/completions",
-        "https://paas.abacus.ai/v1/chat/completions",
-        "https://api.abacus.ai/v1/chat/completions"
-    ]
-
-    last_err = ""
-    for ep in routellm_endpoints:
-        headers = {
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": model_name,
-            "messages": [
-                {"role": "system", "content": "You are an expert tutor creating detailed exam question solutions."},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.2,
-            "max_tokens": 4096
-        }
-        try:
-            res = requests.post(ep, json=payload, headers=headers, timeout=30)
-            if res.status_code == 200:
-                res_data = res.json()
-                choices = res_data.get("choices", [])
-                if choices:
-                    content = choices[0].get("message", {}).get("content", "").strip()
-                    if content:
-                        return clean_text_formatting(content)
-            elif res.status_code in [400, 401, 403]:
-                err_msg = ""
-                try: err_msg = res.json().get("error", {}).get("message", res.text)
-                except Exception: err_msg = res.text
-                if "api key" in err_msg.lower() or "unauthorized" in err_msg.lower() or res.status_code in [401, 403]:
-                    raise ValueError(f"Invalid Abacus.AI API Key ({err_msg}). Check key in Abacus.AI account.")
-            last_err = f"{ep} ({res.status_code}): {res.text[:150]}"
-        except ValueError:
-            raise
-        except Exception as e:
-            last_err = str(e)
-
-    # 2. Try Abacus REST evaluateChatResponse / getChatResponse endpoint as fallback
-    v0_endpoints = [
-        "https://api.abacus.ai/api/v0/evaluateChatResponse",
-        "https://api.abacus.ai/api/v0/getChatResponse"
-    ]
-    for ep in v0_endpoints:
-        headers = {
-            "apiKey": key,
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "llmName": model_name,
-            "messages": [{"is_user": True, "text": prompt}],
-            "temperature": 0.2,
-            "numCompletionTokens": 4096
-        }
-        try:
-            res = requests.post(ep, json=payload, headers=headers, timeout=30)
-            if res.status_code == 200:
-                res_data = res.json()
-                if res_data.get("success"):
-                    result_text = res_data.get("result", {}).get("content") or res_data.get("result", {}).get("text") or res_data.get("result")
-                    if isinstance(result_text, str) and result_text.strip():
-                        return clean_text_formatting(result_text)
-            last_err = f"{ep} ({res.status_code}): {res.text[:150]}"
-        except ValueError:
-            raise
-        except Exception as e:
-            last_err = str(e)
-
-    raise RuntimeError(f"Abacus.AI generation failed: {last_err}")
-
-
 def generate_ai_hint(
     question_text: str,
     options: list = None,
     api_key: str = None,
     subject: str = "English",
     provider: str = "gemini",
-    abacus_key: str = None,
-    model: str = "gpt-4o",
+    model: str = "gemini-2.0-flash",
     custom_prompt: str = None
 ) -> str:
     """
-    Unified entry point for AI hint & solution generation using either
-    Google Gemini or Abacus.AI API.
+    Entry point for AI hint & solution generation using Google Gemini API.
     """
-    provider_clean = (provider or "gemini").lower().strip()
-
-    if provider_clean == "abacus":
-        return generate_ai_hint_abacus(
-            question_text=question_text,
-            options=options,
-            abacus_key=abacus_key,
-            subject=subject,
-            model=model,
-            custom_prompt=custom_prompt
-        )
-
-    # Default provider: Google Gemini
-    key = api_key if api_key and api_key.strip() else os.environ.get("GEMINI_API_KEY", "")
-    
-    if not key or not key.strip():
-        # Fall back to Abacus if Abacus Key is present
-        if abacus_key and abacus_key.strip():
-            return generate_ai_hint_abacus(
-                question_text=question_text,
-                options=options,
-                abacus_key=abacus_key,
-                subject=subject,
-                model=model,
-                custom_prompt=custom_prompt
-            )
-        raise ValueError("Google Gemini API Key is missing. Click 'AI Settings' in top navbar to enter your API key.")
+    if provider == "chatgpt":
+        key = api_key if api_key and api_key.strip() else os.environ.get("OPENAI_API_KEY", "")
+        if not key or not key.strip():
+            raise ValueError("ChatGPT API Key is missing. Click 'AI Settings' in top navbar to enter your API key.")
+    else:
+        key = api_key if api_key and api_key.strip() else os.environ.get("GEMINI_API_KEY", "")
+        if not key or not key.strip():
+            raise ValueError("Google Gemini API Key is missing. Click 'AI Settings' in top navbar to enter your API key.")
 
     key = key.strip()
     options = options or []
@@ -373,6 +242,30 @@ def generate_ai_hint(
 
     # Select subject-specific prompt template or custom prompt
     prompt = build_prompt(question_text=question_text, opts_str=opts_str, subject=subject, custom_prompt=custom_prompt)
+
+    if provider == "chatgpt":
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {key}"
+        }
+        payload = {
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2
+        }
+        try:
+            r = requests.post(url, headers=headers, json=payload, timeout=30)
+            if r.status_code == 200:
+                data = r.json()
+                return data["choices"][0]["message"]["content"].strip()
+            else:
+                err_msg = r.json().get("error", {}).get("message", "Unknown OpenAI API Error")
+                raise ValueError(f"ChatGPT API Error: {err_msg}")
+        except ValueError:
+            raise
+        except Exception as e:
+            raise ValueError(f"Failed to connect to ChatGPT API: {e}")
 
     payload = {
         "contents": [

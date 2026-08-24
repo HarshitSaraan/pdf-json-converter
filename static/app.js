@@ -45,14 +45,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const aiModalOverlay = document.getElementById('aiModalOverlay');
   const closeAiModalBtn = document.getElementById('closeAiModalBtn');
   const cancelAiModalBtn = document.getElementById('cancelAiModalBtn');
-  const saveAiModalBtn = document.getElementById('saveAiModalBtn');
   const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
-  const abacusApiKeyInput = document.getElementById('abacusApiKeyInput');
-  const abacusModelSelect = document.getElementById('abacusModelSelect');
-  const providerGeminiBtn = document.getElementById('providerGeminiBtn');
-  const providerAbacusBtn = document.getElementById('providerAbacusBtn');
+  const chatgptApiKeyInput = document.getElementById('chatgptApiKeyInput');
   const geminiConfigBox = document.getElementById('geminiConfigBox');
-  const abacusConfigBox = document.getElementById('abacusConfigBox');
+  const chatgptConfigBox = document.getElementById('chatgptConfigBox');
   const autoGenerateAllHintsBtn = document.getElementById('autoGenerateAllHintsBtn');
   const useAiTopicsCheckbox = document.getElementById('useAiTopicsCheckbox');
 
@@ -271,14 +267,11 @@ document.addEventListener('DOMContentLoaded', () => {
   initGoogleAuth();
 
   // Load stored AI settings
-  let activeProvider = localStorage.getItem('llm_provider') || 'gemini';
   const savedGeminiKey = localStorage.getItem('gemini_api_key') || '';
-  const savedAbacusKey = localStorage.getItem('abacus_api_key') || '';
-  const savedAbacusModel = localStorage.getItem('abacus_model') || 'gpt-4o';
+  const savedChatgptKey = localStorage.getItem('chatgpt_api_key') || '';
 
   if (geminiApiKeyInput) geminiApiKeyInput.value = savedGeminiKey;
-  if (abacusApiKeyInput) abacusApiKeyInput.value = savedAbacusKey;
-  if (abacusModelSelect) abacusModelSelect.value = savedAbacusModel;
+  if (chatgptApiKeyInput) chatgptApiKeyInput.value = savedChatgptKey;
 
   // Default Prompt Templates for Subjects
   const DEFAULT_PROMPTS = {
@@ -514,32 +507,11 @@ Options:
     });
   }
 
-  function updateProviderUI(provider) {
-    activeProvider = provider;
-    if (provider === 'abacus') {
-      if (providerAbacusBtn) providerAbacusBtn.classList.add('active');
-      if (providerGeminiBtn) providerGeminiBtn.classList.remove('active');
-      if (abacusConfigBox) abacusConfigBox.classList.remove('hidden');
-      if (geminiConfigBox) geminiConfigBox.classList.add('hidden');
-    } else {
-      if (providerGeminiBtn) providerGeminiBtn.classList.add('active');
-      if (providerAbacusBtn) providerAbacusBtn.classList.remove('active');
-      if (geminiConfigBox) geminiConfigBox.classList.remove('hidden');
-      if (abacusConfigBox) abacusConfigBox.classList.add('hidden');
-    }
-  }
-
-  if (providerGeminiBtn) providerGeminiBtn.addEventListener('click', () => updateProviderUI('gemini'));
-  if (providerAbacusBtn) providerAbacusBtn.addEventListener('click', () => updateProviderUI('abacus'));
-
   // AI Settings Modal handlers
   if (aiSettingsBtn) {
     aiSettingsBtn.addEventListener('click', () => {
-      activeProvider = localStorage.getItem('llm_provider') || 'gemini';
       if (geminiApiKeyInput) geminiApiKeyInput.value = localStorage.getItem('gemini_api_key') || '';
-      if (abacusApiKeyInput) abacusApiKeyInput.value = localStorage.getItem('abacus_api_key') || '';
-      if (abacusModelSelect) abacusModelSelect.value = localStorage.getItem('abacus_model') || 'gpt-4o';
-      updateProviderUI(activeProvider);
+      if (chatgptApiKeyInput) chatgptApiKeyInput.value = localStorage.getItem('chatgpt_api_key') || '';
       aiModalOverlay.classList.remove('hidden');
     });
   }
@@ -551,17 +523,13 @@ Options:
   if (saveAiModalBtn) {
     saveAiModalBtn.addEventListener('click', () => {
       const gKey = geminiApiKeyInput ? geminiApiKeyInput.value.trim() : '';
-      const aKey = abacusApiKeyInput ? abacusApiKeyInput.value.trim() : '';
-      const aModel = abacusModelSelect ? abacusModelSelect.value : 'gpt-4o';
+      const cKey = chatgptApiKeyInput ? chatgptApiKeyInput.value.trim() : '';
 
-      localStorage.setItem('llm_provider', activeProvider);
       localStorage.setItem('gemini_api_key', gKey);
-      localStorage.setItem('abacus_api_key', aKey);
-      localStorage.setItem('abacus_model', aModel);
+      localStorage.setItem('chatgpt_api_key', cKey);
       
       closeAiModal();
-      const provName = activeProvider === 'abacus' ? 'Abacus.AI' : 'Google Gemini';
-      alert(`AI Settings saved! Active Engine: ${provName}`);
+      alert('AI Settings saved successfully!');
     });
   }
 
@@ -640,10 +608,8 @@ Options:
   parsePdfBtn.addEventListener('click', async () => {
     if (!selectedFile) return;
 
-    const apiKey = localStorage.getItem('gemini_api_key') || '';
-    const abacusApiKey = localStorage.getItem('abacus_api_key') || '';
-    const llmProvider = localStorage.getItem('llm_provider') || 'gemini';
-    const abacusModel = localStorage.getItem('abacus_model') || 'gpt-4o';
+    const llmProvider = 'gemini'; // Enforce Gemini for document parsing
+    const geminiApiKey = localStorage.getItem('gemini_api_key') || '';
 
     const customPrompt = getSubjectPrompt(selectedSubject);
     const useAiTopics = useAiTopicsCheckbox ? useAiTopicsCheckbox.checked : false;
@@ -653,12 +619,11 @@ Options:
     formData.append('file', selectedFile);
     formData.append('subject', selectedSubject);
     formData.append('llmProvider', llmProvider);
-    formData.append('model', abacusModel);
+    formData.append('model', 'gemini-2.0-flash');
     formData.append('useAiTopics', useAiTopics ? 'true' : 'false');
     formData.append('useAiExtraction', useAiExtraction ? 'true' : 'false');
     if (customPrompt) formData.append('customPrompt', customPrompt);
-    if (apiKey) formData.append('apiKey', apiKey);
-    if (abacusApiKey) formData.append('abacusApiKey', abacusApiKey);
+    if (geminiApiKey) formData.append('apiKey', geminiApiKey);
 
     showProgress('Parsing document contents...', 30);
 
@@ -853,7 +818,7 @@ Options:
                 <button class="btn btn-sm btn-outline copy-hint-btn" data-qindex="${qIndex}" title="Copy hint text to clipboard">
                   <i class="fa-regular fa-copy"></i> Copy Hint
                 </button>
-                <button class="ai-gen-btn generate-single-ai-hint-btn" data-qindex="${qIndex}" title="Generate step-by-step explanation using Gemini AI">
+                <button class="ai-gen-btn generate-single-ai-hint-btn" data-qindex="${qIndex}" title="Generate step-by-step explanation using AI">
                   <i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Hint
                 </button>
               </div>
@@ -1118,10 +1083,13 @@ Options:
     const q = questionsData[qIndex];
     if (!q) return;
 
-    const apiKey = localStorage.getItem('gemini_api_key') || '';
-    const abacusApiKey = localStorage.getItem('abacus_api_key') || '';
-    const llmProvider = localStorage.getItem('llm_provider') || 'gemini';
-    const abacusModel = localStorage.getItem('abacus_model') || 'gpt-4o';
+    let llmProvider = 'gemini';
+    const providerRadio = document.querySelector('input[name="global_ai_provider"]:checked');
+    if (providerRadio) {
+      llmProvider = providerRadio.value;
+    }
+
+    const apiKey = localStorage.getItem(llmProvider === 'chatgpt' ? 'chatgpt_api_key' : 'gemini_api_key') || '';
     
     const customPrompt = getSubjectPrompt(q.subject || selectedSubject || 'English');
 
@@ -1139,9 +1107,8 @@ Options:
           questionText: q.questionText,
           options: q.options,
           apiKey: apiKey,
-          abacusApiKey: abacusApiKey,
           llmProvider: llmProvider,
-          model: abacusModel,
+          model: llmProvider === 'chatgpt' ? 'gpt-3.5-turbo' : 'gemini-2.0-flash',
           subject: q.subject || selectedSubject || 'English',
           customPrompt: customPrompt
         })

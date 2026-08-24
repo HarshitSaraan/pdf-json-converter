@@ -76,14 +76,13 @@ async def verify_google_token_endpoint(request: Request):
 @app.post("/api/generate-hint")
 @app.post("/generate-hint")
 async def generate_hint_endpoint(request: Request):
-    """Generates AI hint/explanation using Google Gemini or Abacus.AI API."""
+    """Generates AI hint/explanation using Google Gemini API."""
     data = await request.json()
     question_text = data.get("questionText", "")
     options = data.get("options", [])
     api_key = data.get("apiKey", "")
-    abacus_key = data.get("abacusApiKey", "")
     provider = data.get("llmProvider", "gemini")
-    model = data.get("model", "gpt-4o")
+    model = data.get("model", "gemini-2.0-flash")
     subject = data.get("subject", "English")
     custom_prompt = data.get("customPrompt", None)
 
@@ -95,7 +94,6 @@ async def generate_hint_endpoint(request: Request):
             question_text=question_text,
             options=options,
             api_key=api_key,
-            abacus_key=abacus_key,
             provider=provider,
             model=model,
             subject=subject,
@@ -120,9 +118,8 @@ async def parse_document_endpoint(
     topic: str = Form(None),
     subtopic: str = Form(None),
     apiKey: str = Form(None),
-    abacusApiKey: str = Form(None),
     llmProvider: str = Form("gemini"),
-    model: str = Form("gpt-4o"),
+    model: str = Form("gemini-2.0-flash"),
     useAiTopics: bool = Form(False),
     useAiExtraction: bool = Form(False),
     customPrompt: str = Form(None)
@@ -146,9 +143,8 @@ async def parse_document_endpoint(
             default_topic=topic.strip() if topic else None,
             default_subtopic=subtopic.strip() if subtopic else None,
             api_key=apiKey.strip() if apiKey else None,
-            abacus_key=abacusApiKey.strip() if abacusApiKey else None,
-            provider=llmProvider.strip() if llmProvider else "gemini",
-            model=model.strip() if model else "gpt-4o",
+            provider="gemini", # Enforce Gemini for document parsing
+            model="gemini-2.0-flash", # Enforce Gemini model
             use_ai_topics=useAiTopics,
             use_ai_extraction=useAiExtraction,
             custom_prompt=customPrompt.strip() if customPrompt else None
