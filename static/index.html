@@ -89,12 +89,20 @@
         <!-- ChatGPT Settings Box -->
         <div id="chatgptConfigBox" style="background: var(--bg-input); padding: 1.2rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
           <p class="modal-desc" style="margin-bottom: 0.8rem;">
-            Enter your <strong>ChatGPT API Key</strong> (OpenAI).
-            <br><small>Requires a valid key from <a href="https://platform.openai.com/api-keys" target="_blank" style="color: #6366f1; text-decoration: underline;">OpenAI Dashboard</a>.</small>
+            Enter your <strong>ChatGPT API Key</strong> (OpenAI) and select model.
+            <br><small>Requires a valid key with billing credits from <a href="https://platform.openai.com/api-keys" target="_blank" style="color: #6366f1; text-decoration: underline;">OpenAI Dashboard</a>.</small>
           </p>
-          <div class="form-group">
+          <div class="form-group" style="margin-bottom: 0.8rem;">
             <label for="chatgptApiKeyInput"><i class="fa-solid fa-lock"></i> ChatGPT API Key</label>
             <input type="password" id="chatgptApiKeyInput" placeholder="sk-..." style="font-family: var(--font-code);">
+          </div>
+          <div class="form-group">
+            <label for="chatgptModelSelect"><i class="fa-solid fa-microchip"></i> ChatGPT Model</label>
+            <select id="chatgptModelSelect" style="width: 100%; padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);">
+              <option value="gpt-4o-mini" selected>gpt-4o-mini (Recommended - Fast & Low Cost)</option>
+              <option value="gpt-4o">gpt-4o (High Intelligence)</option>
+              <option value="gpt-3.5-turbo">gpt-3.5-turbo (Legacy)</option>
+            </select>
           </div>
         </div>
 

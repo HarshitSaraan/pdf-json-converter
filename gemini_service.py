@@ -249,8 +249,9 @@ def generate_ai_hint(
             "Content-Type": "application/json",
             "Authorization": f"Bearer {key}"
         }
+        target_model = model if (model and "gpt-" in model) else "gpt-4o-mini"
         payload = {
-            "model": "gpt-3.5-turbo",
+            "model": target_model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.2
         }

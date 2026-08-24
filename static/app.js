@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const cancelAiModalBtn = document.getElementById('cancelAiModalBtn');
   const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
   const chatgptApiKeyInput = document.getElementById('chatgptApiKeyInput');
+  const chatgptModelSelect = document.getElementById('chatgptModelSelect');
   const geminiConfigBox = document.getElementById('geminiConfigBox');
   const chatgptConfigBox = document.getElementById('chatgptConfigBox');
   const autoGenerateAllHintsBtn = document.getElementById('autoGenerateAllHintsBtn');
@@ -269,9 +270,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load stored AI settings
   const savedGeminiKey = localStorage.getItem('gemini_api_key') || '';
   const savedChatgptKey = localStorage.getItem('chatgpt_api_key') || '';
+  const savedChatgptModel = localStorage.getItem('chatgpt_model') || 'gpt-4o-mini';
 
   if (geminiApiKeyInput) geminiApiKeyInput.value = savedGeminiKey;
   if (chatgptApiKeyInput) chatgptApiKeyInput.value = savedChatgptKey;
+  if (chatgptModelSelect) chatgptModelSelect.value = savedChatgptModel;
 
   // Default Prompt Templates for Subjects
   const DEFAULT_PROMPTS = {
@@ -512,6 +515,7 @@ Options:
     aiSettingsBtn.addEventListener('click', () => {
       if (geminiApiKeyInput) geminiApiKeyInput.value = localStorage.getItem('gemini_api_key') || '';
       if (chatgptApiKeyInput) chatgptApiKeyInput.value = localStorage.getItem('chatgpt_api_key') || '';
+      if (chatgptModelSelect) chatgptModelSelect.value = localStorage.getItem('chatgpt_model') || 'gpt-4o-mini';
       aiModalOverlay.classList.remove('hidden');
     });
   }
@@ -524,9 +528,11 @@ Options:
     saveAiModalBtn.addEventListener('click', () => {
       const gKey = geminiApiKeyInput ? geminiApiKeyInput.value.trim() : '';
       const cKey = chatgptApiKeyInput ? chatgptApiKeyInput.value.trim() : '';
+      const cModel = chatgptModelSelect ? chatgptModelSelect.value : 'gpt-4o-mini';
 
       localStorage.setItem('gemini_api_key', gKey);
       localStorage.setItem('chatgpt_api_key', cKey);
+      localStorage.setItem('chatgpt_model', cModel);
       
       closeAiModal();
       alert('AI Settings saved successfully!');
@@ -1108,7 +1114,7 @@ Options:
           options: q.options,
           apiKey: apiKey,
           llmProvider: llmProvider,
-          model: llmProvider === 'chatgpt' ? 'gpt-3.5-turbo' : 'gemini-2.0-flash',
+          model: llmProvider === 'chatgpt' ? (localStorage.getItem('chatgpt_model') || 'gpt-4o-mini') : 'gemini-2.0-flash',
           subject: q.subject || selectedSubject || 'English',
           customPrompt: customPrompt
         })
