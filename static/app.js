@@ -287,46 +287,20 @@ document.addEventListener('DOMContentLoaded', () => {
     renderUserProfile(sessionData);
   }
 
-  const localBypassBtn = document.getElementById('localBypassBtn');
-
-  function bypassLocalAuth() {
-    const localAdminSession = {
-      email: "harshitsaraan@gmail.com",
-      name: "Harshit (Local Admin)",
-      picture: "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y",
-      credential: "local_dev_bypass"
-    };
-    localStorage.setItem('google_user_session', JSON.stringify(localAdminSession));
-    renderUserProfile(localAdminSession);
-  }
-
-  if (localBypassBtn) {
-    localBypassBtn.addEventListener('click', bypassLocalAuth);
-  }
-
   function initGoogleAuth() {
-    const isLocalDev = window.location.hostname === 'localhost' || 
-                       window.location.hostname === '127.0.0.1' || 
-                       window.location.hostname === '' || 
-                       window.location.protocol === 'file:';
-
     const savedSession = localStorage.getItem('google_user_session');
     if (savedSession) {
       try {
         const userData = JSON.parse(savedSession);
-        if (userData && userData.email && (ALLOWED_EMAILS.includes(userData.email.toLowerCase()) || isLocalDev)) {
+        if (userData && userData.email && userData.credential !== 'local_dev_bypass' && ALLOWED_EMAILS.includes(userData.email.toLowerCase())) {
           renderUserProfile(userData);
           return;
+        } else {
+          localStorage.removeItem('google_user_session');
         }
       } catch (e) {
         localStorage.removeItem('google_user_session');
       }
-    }
-
-    // If running locally on localhost/127.0.0.1, auto-bypass to avoid OAuth origin mismatch
-    if (isLocalDev) {
-      bypassLocalAuth();
-      return;
     }
 
     if (mainAppContainer) mainAppContainer.classList.add('hidden');
