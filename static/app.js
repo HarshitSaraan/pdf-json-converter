@@ -12,10 +12,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // DOM Elements - Navigation & Modes
   const modeParserBtn = document.getElementById('modeParserBtn');
   const modeReviewerBtn = document.getElementById('modeReviewerBtn');
+  const modeUnreviewedBankBtn = document.getElementById('modeUnreviewedBankBtn');
   const modeReviewedBankBtn = document.getElementById('modeReviewedBankBtn');
   const modeAddSingleBtn = document.getElementById('modeAddSingleBtn');
   const modeMockBtn = document.getElementById('modeMockBtn');
   const navPendingReviewBadge = document.getElementById('navPendingReviewBadge');
+  const navUnreviewedCountBadge = document.getElementById('navUnreviewedCountBadge');
+  const navReviewedCountBadge = document.getElementById('navReviewedCountBadge');
 
   // Role Gateway Screen & Navigation Elements
   const roleGatewayScreen = document.getElementById('roleGatewayScreen');
@@ -634,7 +637,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const role = localStorage.getItem('questify_user_role') || (activeMode === 'reviewer' ? 'reviewer' : 'parser');
     applyRolePermissions(role);
 
-    [modeParserBtn, modeReviewerBtn, modeReviewedBankBtn, modeAddSingleBtn, modeMockBtn].forEach(b => b && b.classList.remove('active'));
+    [modeParserBtn, modeReviewerBtn, modeUnreviewedBankBtn, modeReviewedBankBtn, modeAddSingleBtn, modeMockBtn].forEach(b => b && b.classList.remove('active'));
     [parserSection, reviewerSection, reviewedBankSection, singleQSection, mockGeneratorSection].forEach(s => s && s.classList.add('hidden'));
 
     // Toggle Reviewer full-screen body class (hides footers and extra widgets)
@@ -645,6 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.classList.remove('reviewer-mode');
       if (activeRoleNavLabel) {
         if (activeMode === 'parser') activeRoleNavLabel.textContent = 'Parser (Guy A)';
+        else if (activeMode === 'unreviewed_bank') activeRoleNavLabel.textContent = 'Unreviewed Questions';
         else if (activeMode === 'reviewed_bank') activeRoleNavLabel.textContent = 'Reviewed Bank';
         else if (activeMode === 'single') activeRoleNavLabel.textContent = 'Add Question';
         else if (activeMode === 'mock') activeRoleNavLabel.textContent = 'Mock Generator';
@@ -658,10 +662,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (modeReviewerBtn) modeReviewerBtn.classList.add('active');
       if (reviewerSection) reviewerSection.classList.remove('hidden');
       initReviewerPortal();
+    } else if (activeMode === 'unreviewed_bank') {
+      if (modeUnreviewedBankBtn) modeUnreviewedBankBtn.classList.add('active');
+      if (reviewedBankSection) reviewedBankSection.classList.remove('hidden');
+      setBankTab('unreviewed');
     } else if (activeMode === 'reviewed_bank') {
       if (modeReviewedBankBtn) modeReviewedBankBtn.classList.add('active');
       if (reviewedBankSection) reviewedBankSection.classList.remove('hidden');
-      fetchReviewedBank();
+      setBankTab('reviewed');
     } else if (activeMode === 'single') {
       if (modeAddSingleBtn) modeAddSingleBtn.classList.add('active');
       if (singleQSection) singleQSection.classList.remove('hidden');
@@ -675,6 +683,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (modeParserBtn) modeParserBtn.addEventListener('click', () => switchMainMode('parser'));
   if (modeReviewerBtn) modeReviewerBtn.addEventListener('click', () => switchMainMode('reviewer'));
+  if (modeUnreviewedBankBtn) modeUnreviewedBankBtn.addEventListener('click', () => switchMainMode('unreviewed_bank'));
   if (modeReviewedBankBtn) modeReviewedBankBtn.addEventListener('click', () => switchMainMode('reviewed_bank'));
   if (modeAddSingleBtn) modeAddSingleBtn.addEventListener('click', () => switchMainMode('single'));
   if (modeMockBtn) modeMockBtn.addEventListener('click', () => switchMainMode('mock'));
@@ -1318,9 +1327,22 @@ document.addEventListener('DOMContentLoaded', () => {
       if (res.ok) {
         const stats = await res.json();
         const cnt = stats.unreviewedTotal || 0;
+        const rev = stats.reviewedTotal || 0;
         if (navPendingReviewBadge) {
           navPendingReviewBadge.textContent = cnt;
           navPendingReviewBadge.style.display = cnt > 0 ? 'inline-block' : 'none';
+        }
+        if (navUnreviewedCountBadge) {
+          navUnreviewedCountBadge.textContent = cnt;
+        }
+        if (navReviewedCountBadge) {
+          navReviewedCountBadge.textContent = rev;
+        }
+        if (qbUnreviewedBadge) {
+          qbUnreviewedBadge.textContent = cnt;
+        }
+        if (qbReviewedBadge) {
+          qbReviewedBadge.textContent = rev;
         }
         if (reviewerQueueCountBadge) {
           reviewerQueueCountBadge.textContent = `${cnt} Pending Review`;
@@ -1817,9 +1839,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // =========================================================================
-  // REVIEWED QUESTION BANK (PRODUCTION DB)
+  // QUESTION BANK & DATABASE (UNREVIEWED & REVIEWED)
   // =========================================================================
+  let currentBankTab = 'unreviewed'; // 'unreviewed' | 'reviewed'
+  let unreviewedBankData = [];
   let reviewedBankData = [];
+
+  const qbUnreviewedTabBtn = document.getElementById('qbUnreviewedTabBtn');
+  const qbReviewedTabBtn = document.getElementById('qbReviewedTabBtn');
+  const qbUnreviewedBadge = document.getElementById('qbUnreviewedBadge');
+  const qbReviewedBadge = document.getElementById('qbReviewedBadge');
+  const qbHeaderTitle = document.getElementById('qbHeaderTitle');
+  const qbHeaderDesc = document.getElementById('qbHeaderDesc');
+  const qbResetUsedBtn = document.getElementById('qbResetUsedBtn');
+
   const reviewedBankList = document.getElementById('reviewedBankList');
   const reviewedBankTotalBadge = document.getElementById('reviewedBankTotalBadge');
   const reviewedBankSearchInput = document.getElementById('reviewedBankSearchInput');
@@ -1828,27 +1861,84 @@ document.addEventListener('DOMContentLoaded', () => {
   const refreshReviewedBankBtn = document.getElementById('refreshReviewedBankBtn');
   const exportReviewedBankJsonBtn = document.getElementById('exportReviewedBankJsonBtn');
 
-  async function fetchReviewedBank() {
-    if (!reviewedBankList) return;
-    reviewedBankList.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner spin-icon"></i> Loading Reviewed Bank...</div>';
-    
+  function setBankTab(tab) {
+    currentBankTab = tab;
+    if (qbUnreviewedTabBtn && qbReviewedTabBtn) {
+      qbUnreviewedTabBtn.classList.toggle('active', tab === 'unreviewed');
+      qbReviewedTabBtn.classList.toggle('active', tab === 'reviewed');
+    }
+
+    if (qbHeaderTitle && qbHeaderDesc) {
+      if (tab === 'unreviewed') {
+        qbHeaderTitle.innerHTML = `<i class="fa-solid fa-clock-rotate-left" style="color: #f59e0b;"></i> Unreviewed Questions (Staging DB) <span class="count-badge" id="reviewedBankTotalBadge">${unreviewedBankData.length} Questions</span>`;
+        qbHeaderDesc.innerHTML = 'Raw questions parsed and staged in <code>questify.unreviewed_questions</code> waiting for Guy B review.';
+        if (qbResetUsedBtn) qbResetUsedBtn.classList.add('hidden');
+      } else {
+        qbHeaderTitle.innerHTML = `<i class="fa-solid fa-database" style="color: #6366f1;"></i> Reviewed Question Bank (Production DB) <span class="count-badge" id="reviewedBankTotalBadge">${reviewedBankData.length} Vetted Questions</span>`;
+        qbHeaderDesc.innerHTML = 'Production repository of verified, vetted questions granted by Guy B in <code>questify.reviewed_questions</code>.';
+        if (qbResetUsedBtn) qbResetUsedBtn.classList.remove('hidden');
+      }
+    }
+
+    fetchBankQuestions();
+  }
+
+  if (qbUnreviewedTabBtn) qbUnreviewedTabBtn.addEventListener('click', () => setBankTab('unreviewed'));
+  if (qbReviewedTabBtn) qbReviewedTabBtn.addEventListener('click', () => setBankTab('reviewed'));
+
+  async function fetchBankStats() {
     try {
-      const res = await fetch(`${API_BASE}/api/reviewed-questions`);
+      const res = await fetch(`${API_BASE}/api/unreviewed-questions/stats`);
+      if (res.ok) {
+        const stats = await res.json();
+        const unrev = stats.unreviewedTotal || 0;
+        const rev = stats.reviewedTotal || 0;
+
+        if (qbUnreviewedBadge) qbUnreviewedBadge.textContent = unrev;
+        if (qbReviewedBadge) qbReviewedBadge.textContent = rev;
+        if (navUnreviewedCountBadge) navUnreviewedCountBadge.textContent = unrev;
+        if (navReviewedCountBadge) navReviewedCountBadge.textContent = rev;
+        if (navPendingReviewBadge) {
+          navPendingReviewBadge.textContent = unrev;
+          navPendingReviewBadge.style.display = unrev > 0 ? 'inline-block' : 'none';
+        }
+      }
+    } catch(e) {}
+  }
+
+  async function fetchBankQuestions() {
+    if (!reviewedBankList) return;
+    const isUnrev = (currentBankTab === 'unreviewed');
+    const endpoint = isUnrev ? `${API_BASE}/api/unreviewed-questions` : `${API_BASE}/api/reviewed-questions`;
+
+    reviewedBankList.innerHTML = `<div class="empty-state"><i class="fa-solid fa-spinner spin-icon"></i> Loading ${isUnrev ? 'Unreviewed Staging Questions' : 'Reviewed Question Bank'}...</div>`;
+
+    fetchBankStats();
+
+    try {
+      const res = await fetch(endpoint);
       if (res.ok) {
         const data = await res.json();
-        reviewedBankData = data.questions || [];
-        renderReviewedBank();
+        if (isUnrev) {
+          unreviewedBankData = data.questions || [];
+        } else {
+          reviewedBankData = data.questions || [];
+        }
+        renderBankQuestions();
       }
     } catch(err) {
-      reviewedBankList.innerHTML = `<div class="empty-state text-danger">Error: ${err.message}</div>`;
+      reviewedBankList.innerHTML = `<div class="empty-state text-danger">Error loading questions: ${err.message}</div>`;
     }
   }
 
-  function renderReviewedBank() {
+  function renderBankQuestions() {
     if (!reviewedBankList) return;
-    if (reviewedBankData.length === 0) {
-      reviewedBankList.innerHTML = '<div class="empty-state">No reviewed questions yet. As Guy B grants questions, they appear here.</div>';
-      if (reviewedBankTotalBadge) reviewedBankTotalBadge.textContent = '0 Vetted Questions';
+    const isUnrev = (currentBankTab === 'unreviewed');
+    const rawData = isUnrev ? unreviewedBankData : reviewedBankData;
+
+    if (rawData.length === 0) {
+      reviewedBankList.innerHTML = `<div class="empty-state">No ${isUnrev ? 'unreviewed' : 'reviewed'} questions found in MongoDB ${isUnrev ? 'questify.unreviewed_questions' : 'questify.reviewed_questions'}.</div>`;
+      if (reviewedBankTotalBadge) reviewedBankTotalBadge.textContent = `0 ${isUnrev ? 'Questions' : 'Vetted Questions'}`;
       return;
     }
 
@@ -1856,22 +1946,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const subjVal = reviewedBankSubjectFilter ? reviewedBankSubjectFilter.value : 'all';
     const labelVal = reviewedBankLabelFilter ? reviewedBankLabelFilter.value : 'all';
 
-    const filtered = reviewedBankData.filter(q => {
+    const filtered = rawData.filter(q => {
       if (subjVal !== 'all' && (q.subject || '').toLowerCase() !== subjVal.toLowerCase()) return false;
       if (labelVal !== 'all' && (q.label || '').toLowerCase() !== labelVal.toLowerCase()) return false;
       if (query) {
         const matchQ = (q.questionText || '').toLowerCase().includes(query);
         const matchHint = (q.hint || '').toLowerCase().includes(query);
         const matchTopic = (q.topic || '').toLowerCase().includes(query);
-        if (!matchQ && !matchHint && !matchTopic) return false;
+        const matchSubtopic = (q.subtopic || '').toLowerCase().includes(query);
+        if (!matchQ && !matchHint && !matchTopic && !matchSubtopic) return false;
       }
       return true;
     });
 
-    if (reviewedBankTotalBadge) reviewedBankTotalBadge.textContent = `${filtered.length} Vetted Questions`;
+    if (reviewedBankTotalBadge) {
+      reviewedBankTotalBadge.textContent = `${filtered.length} ${isUnrev ? 'Questions' : 'Vetted Questions'}`;
+    }
 
     if (filtered.length === 0) {
-      reviewedBankList.innerHTML = '<div class="empty-state">No matching questions found in Reviewed Bank.</div>';
+      reviewedBankList.innerHTML = `<div class="empty-state">No matching questions found with selected filters.</div>`;
       return;
     }
 
@@ -1891,58 +1984,98 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
       });
 
+      const qTextClean = normalizeParagraphText(q.questionText || '');
+      const qHintClean = normalizeParagraphText(q.hint || '');
+
       card.innerHTML = `
         <div class="card-header qb-card-toggle">
           <div style="display: flex; align-items: center; gap: 0.75rem;">
             <i class="fa-solid fa-chevron-down expand-chevron"></i>
-            <span class="question-index"><i class="fa-solid fa-circle-check" style="color: #10b981;"></i> Question ${idx + 1}</span>
+            <span class="question-index">
+              ${isUnrev 
+                ? `<i class="fa-solid fa-clock" style="color: #f59e0b;"></i> Question #${idx + 1}` 
+                : `<i class="fa-solid fa-circle-check" style="color: #10b981;"></i> Question #${idx + 1}`}
+            </span>
           </div>
-          <div class="card-meta-inputs" style="gap: 0.5rem; align-items: center;">
+          <div class="card-meta-inputs" style="gap: 0.4rem; align-items: center;">
+            ${isUnrev 
+              ? `<span class="badge" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.72rem; color: #f59e0b; font-weight: 700;">UNREVIEWED</span>` 
+              : `<span class="badge" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; color: #10b981; font-weight: 700;">REVIEWED</span>`}
             ${q.isUsed ? `<span class="used-stamp">USED</span>` : ''}
             <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); font-size:0.75rem; text-transform:uppercase; color:#818cf8;">${q.label || 'medium'}</span>
             <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); font-size:0.75rem;">${q.subject || 'N/A'}</span>
-            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); font-size:0.75rem;">${q.topic || 'N/A'}</span>
-            ${q.id ? `<button class="btn btn-icon text-danger del-reviewed-btn" data-id="${q.id}" title="Delete from Reviewed Bank"><i class="fa-solid fa-trash"></i></button>` : ''}
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); font-size:0.75rem;">${q.topic || 'General'}</span>
+            <button class="btn btn-icon qb-copy-q-btn" title="Copy Question JSON"><i class="fa-regular fa-copy"></i></button>
+            ${!isUnrev && q.id ? `<button class="btn btn-icon text-danger del-reviewed-btn" data-id="${q.id}" title="Delete from Reviewed Bank"><i class="fa-solid fa-trash"></i></button>` : ''}
           </div>
         </div>
         <div class="card-body-collapsible">
           <div class="form-group">
-            <label><i class="fa-solid fa-pen-nib"></i> Question Text</label>
-            <textarea class="q-text-input" rows="2" disabled>${escapeHtml(q.questionText)}</textarea>
+            <label style="display: flex; justify-content: space-between; align-items: center;">
+              <span><i class="fa-solid fa-pen-nib" style="color: #6366f1;"></i> Question Text</span>
+              ${q.subtopic ? `<span style="font-size: 0.78rem; color: var(--text-secondary); font-weight: normal;">Subtopic: <strong>${escapeHtml(q.subtopic)}</strong></span>` : ''}
+            </label>
+            <textarea class="q-text-input" rows="3" disabled>${escapeHtml(qTextClean)}</textarea>
             <div class="latex-preview-box math-render rev-math-q" style="margin-top:0.4rem;"></div>
           </div>
-          ${q.hint ? `
-          <div class="hint-wrapper">
-            <div class="hint-header"><label><i class="fa-solid fa-lightbulb"></i> Solution / Explanation</label></div>
-            <textarea class="q-hint-input" rows="3" disabled>${escapeHtml(q.hint)}</textarea>
+          ${qHintClean ? `
+          <div class="hint-wrapper" style="margin-top: 0.75rem;">
+            <div class="hint-header"><label><i class="fa-solid fa-lightbulb" style="color: #f59e0b;"></i> Solution / Explanation</label></div>
+            <textarea class="q-hint-input" rows="3" disabled>${escapeHtml(qHintClean)}</textarea>
             <div class="latex-preview-box math-render rev-math-h" style="margin-top:0.4rem;"></div>
           </div>` : ''}
           <div class="options-container" style="margin-top:0.75rem;">
             ${optionsHtml}
           </div>
+          ${isUnrev ? `
+          <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end;">
+            <button class="btn btn-sm btn-primary jump-to-review-btn" data-idx="${idx}">
+              <i class="fa-solid fa-clipboard-check"></i> Review this Question in Studio (Guy B)
+            </button>
+          </div>` : ''}
         </div>
       `;
 
       card.querySelector('.qb-card-toggle').addEventListener('click', (e) => {
-        if (e.target.closest('.del-reviewed-btn')) return;
+        if (e.target.closest('.del-reviewed-btn') || e.target.closest('.qb-copy-q-btn')) return;
         card.classList.toggle('expanded');
       });
 
+      const copyBtn = card.querySelector('.qb-copy-q-btn');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          navigator.clipboard.writeText(JSON.stringify(q, null, 2)).then(() => {
+            copyBtn.innerHTML = '<i class="fa-solid fa-check" style="color: #10b981;"></i>';
+            setTimeout(() => { copyBtn.innerHTML = '<i class="fa-regular fa-copy"></i>'; }, 1500);
+          });
+        });
+      }
+
+      const jumpBtn = card.querySelector('.jump-to-review-btn');
+      if (jumpBtn) {
+        jumpBtn.addEventListener('click', () => {
+          switchMainMode('reviewer');
+          fetchFocusQuestion(idx);
+        });
+      }
+
       const qBox = card.querySelector('.rev-math-q');
-      if (qBox) renderMathInContainer(qBox, q.questionText);
+      if (qBox) renderMathInContainer(qBox, qTextClean);
       const hBox = card.querySelector('.rev-math-h');
-      if (hBox && q.hint) renderMathInContainer(hBox, q.hint);
+      if (hBox && qHintClean) renderMathInContainer(hBox, qHintClean);
 
       reviewedBankList.appendChild(card);
     });
 
     document.querySelectorAll('.del-reviewed-btn').forEach(btn => {
       btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const qId = e.currentTarget.dataset.id;
         if (!confirm('Are you sure you want to delete this verified question from the Reviewed Bank?')) return;
         try {
           const res = await fetch(`${API_BASE}/api/reviewed-questions/${qId}`, { method: 'DELETE' });
-          if (res.ok) fetchReviewedBank();
+          if (res.ok) fetchBankQuestions();
         } catch(err) {
           alert('Delete error: ' + err.message);
         }
@@ -1950,19 +2083,37 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (refreshReviewedBankBtn) refreshReviewedBankBtn.addEventListener('click', fetchReviewedBank);
-  if (reviewedBankSearchInput) reviewedBankSearchInput.addEventListener('input', renderReviewedBank);
-  if (reviewedBankSubjectFilter) reviewedBankSubjectFilter.addEventListener('change', renderReviewedBank);
-  if (reviewedBankLabelFilter) reviewedBankLabelFilter.addEventListener('change', renderReviewedBank);
+  if (refreshReviewedBankBtn) refreshReviewedBankBtn.addEventListener('click', fetchBankQuestions);
+  if (reviewedBankSearchInput) reviewedBankSearchInput.addEventListener('input', renderBankQuestions);
+  if (reviewedBankSubjectFilter) reviewedBankSubjectFilter.addEventListener('change', renderBankQuestions);
+  if (reviewedBankLabelFilter) reviewedBankLabelFilter.addEventListener('change', renderBankQuestions);
+
+  if (qbResetUsedBtn) {
+    qbResetUsedBtn.addEventListener('click', async () => {
+      if (!confirm('Reset all questions in Reviewed Question Bank back to unused status?')) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/reviewed-questions/reset-used`, { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          alert(data.message || 'Questions reset successfully!');
+          fetchBankQuestions();
+        }
+      } catch(err) {
+        alert('Reset error: ' + err.message);
+      }
+    });
+  }
 
   if (exportReviewedBankJsonBtn) {
     exportReviewedBankJsonBtn.addEventListener('click', () => {
-      const jsonStr = JSON.stringify(reviewedBankData, null, 2);
+      const isUnrev = (currentBankTab === 'unreviewed');
+      const dataToExport = isUnrev ? unreviewedBankData : reviewedBankData;
+      const jsonStr = JSON.stringify(dataToExport, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'reviewed_questions.json';
+      a.download = isUnrev ? 'unreviewed_questions.json' : 'reviewed_questions.json';
       document.body.appendChild(a);
       a.click();
       a.remove();

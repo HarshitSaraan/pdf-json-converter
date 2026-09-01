@@ -271,18 +271,24 @@
       <button class="main-mode-btn hidden" id="modeReviewerBtn">
         <i class="fa-solid fa-clipboard-check" style="color: #10b981;"></i>
         <span>Reviewer Studio</span>
-        <span class="badge badge-warning" id="navPendingReviewBadge" style="margin-left: 0.4rem; padding: 0.15rem 0.5rem; font-size: 0.75rem; border-radius: 12px; background: #f59e0b; color: #000; font-weight: 700;">0</span>
+        <span class="badge badge-warning" id="navPendingReviewBadge" style="margin-left: 0.2rem; padding: 0.1rem 0.45rem; font-size: 0.72rem; border-radius: 10px; background: #f59e0b; color: #000; font-weight: 700;">0</span>
+      </button>
+      <button class="main-mode-btn" id="modeUnreviewedBankBtn">
+        <i class="fa-solid fa-clock-rotate-left" style="color: #f59e0b;"></i>
+        <span>Unreviewed Questions</span>
+        <span class="count-pill" id="navUnreviewedCountBadge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.72rem; padding: 0.1rem 0.45rem; border-radius: 10px; font-weight: 700;">0</span>
       </button>
       <button class="main-mode-btn" id="modeReviewedBankBtn">
         <i class="fa-solid fa-database" style="color: #6366f1;"></i>
-        <span>Reviewed Question Bank</span>
+        <span>Reviewed Questions</span>
+        <span class="count-pill" id="navReviewedCountBadge" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 0.72rem; padding: 0.1rem 0.45rem; border-radius: 10px; font-weight: 700;">0</span>
       </button>
       <button class="main-mode-btn" id="modeAddSingleBtn">
         <i class="fa-solid fa-square-plus" style="color: #06b6d4;"></i>
         <span>Add Question</span>
       </button>
       <button class="main-mode-btn" id="modeMockBtn">
-        <i class="fa-solid fa-file-signature" style="color: #f59e0b;"></i>
+        <i class="fa-solid fa-file-signature" style="color: #10b981;"></i>
         <span>Create Mock Test</span>
       </button>
     </div>
@@ -712,41 +718,62 @@
     </section>
 
     <!-- ========================================================================= -->
-    <!-- REVIEWED QUESTION BANK (PRODUCTION DATABASE) -->
+    <!-- QUESTION BANK & DATABASE (UNREVIEWED + REVIEWED) -->
     <!-- ========================================================================= -->
     <section class="qb-standalone-section hidden" id="reviewedBankSection">
-      <div class="workspace-header" style="background: var(--bg-card); padding: 1.2rem 1.5rem; border-radius: var(--radius-lg); border: 1px solid var(--border-color); margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-        <div>
-          <h3 style="display: flex; align-items: center; gap: 0.6rem; font-size: 1.25rem;">
-            <i class="fa-solid fa-database" style="color: #6366f1;"></i> Reviewed Question Bank
-            <span class="count-badge" id="reviewedBankTotalBadge">0 Vetted Questions</span>
-          </h3>
-          <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.2rem;">
-            Production repository of verified, vetted questions granted by Guy B. Mock tests are generated exclusively from here.
-          </p>
+      
+      <!-- Top Toggle Switcher: Unreviewed Questions vs Reviewed Questions -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+        <div class="segmented-control" style="margin: 0; background: var(--bg-primary);">
+          <button type="button" class="segment-btn active" id="qbUnreviewedTabBtn" style="font-size: 0.84rem; padding: 0.4rem 1rem;">
+            <i class="fa-solid fa-clock-rotate-left" style="color: #f59e0b;"></i> Unreviewed Questions
+            <span class="badge" id="qbUnreviewedBadge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; margin-left: 0.35rem; padding: 0.1rem 0.45rem; font-size: 0.72rem; border-radius: 10px;">0</span>
+          </button>
+          <button type="button" class="segment-btn" id="qbReviewedTabBtn" style="font-size: 0.84rem; padding: 0.4rem 1rem;">
+            <i class="fa-solid fa-database" style="color: #6366f1;"></i> Reviewed Questions
+            <span class="badge" id="qbReviewedBadge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; margin-left: 0.35rem; padding: 0.1rem 0.45rem; font-size: 0.72rem; border-radius: 10px;">0</span>
+          </button>
         </div>
-        <div class="action-buttons-group">
-          <button class="btn btn-outline btn-sm" id="refreshReviewedBankBtn">
+
+        <div class="action-buttons-group" style="display: flex; gap: 0.5rem; align-items: center;">
+          <button class="btn btn-outline btn-sm" id="refreshReviewedBankBtn" title="Reload from MongoDB">
             <i class="fa-solid fa-rotate-right"></i> Refresh
           </button>
-          <button class="btn btn-outline btn-sm" id="exportReviewedBankJsonBtn">
+          <button class="btn btn-outline btn-sm" id="exportReviewedBankJsonBtn" title="Download JSON export">
             <i class="fa-solid fa-download"></i> Export JSON
+          </button>
+          <button class="btn btn-outline btn-sm hidden" id="qbResetUsedBtn" title="Reset isUsed status back to false for mock test reuse">
+            <i class="fa-solid fa-arrows-rotate"></i> Reset Used
           </button>
         </div>
       </div>
 
+      <!-- Info Header Card -->
+      <div class="workspace-header" style="background: var(--bg-card); padding: 1rem 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+        <div>
+          <h3 id="qbHeaderTitle" style="display: flex; align-items: center; gap: 0.6rem; font-size: 1.15rem; margin-bottom: 0.25rem;">
+            <i class="fa-solid fa-clock-rotate-left" style="color: #f59e0b;"></i> Unreviewed Questions (Staging DB)
+            <span class="count-badge" id="reviewedBankTotalBadge">0 Questions</span>
+          </h3>
+          <p id="qbHeaderDesc" style="font-size: 0.82rem; color: var(--text-secondary); margin: 0;">
+            Raw questions parsed and staged in <code>questify.unreviewed_questions</code> waiting for Guy B's review.
+          </p>
+        </div>
+      </div>
+
+      <!-- Filter Bar -->
       <div class="filter-bar">
         <div class="search-input-wrapper" style="flex: 1;">
           <i class="fa-solid fa-magnifying-glass search-icon"></i>
-          <input type="text" id="reviewedBankSearchInput" placeholder="Search reviewed questions by text, topic, or subtopic...">
+          <input type="text" id="reviewedBankSearchInput" placeholder="Search questions by text, topic, or subtopic...">
         </div>
-        <select id="reviewedBankSubjectFilter" class="meta-select" style="padding: 0.5rem 0.8rem;">
+        <select id="reviewedBankSubjectFilter" class="meta-select" style="padding: 0.45rem 0.75rem; font-size: 0.85rem;">
           <option value="all">All Subjects</option>
           <option value="English">English</option>
           <option value="Quants">Quants</option>
           <option value="LRDI">LRDI</option>
         </select>
-        <select id="reviewedBankLabelFilter" class="meta-select" style="padding: 0.5rem 0.8rem;">
+        <select id="reviewedBankLabelFilter" class="meta-select" style="padding: 0.45rem 0.75rem; font-size: 0.85rem;">
           <option value="all">All Difficulties</option>
           <option value="easy">Easy</option>
           <option value="medium">Medium</option>
@@ -757,7 +784,7 @@
       <div class="editor-container">
         <div class="cards-view">
           <div class="questions-list" id="reviewedBankList">
-            <!-- Reviewed Question Bank cards populated dynamically -->
+            <!-- Questions populated dynamically -->
           </div>
         </div>
       </div>

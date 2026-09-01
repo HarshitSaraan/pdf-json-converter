@@ -265,7 +265,7 @@ async def add_unreviewed_questions_bulk(request: Request):
     }
 
 @app.get("/api/unreviewed-questions")
-async def get_unreviewed_questions(subject: str = None, limit: int = 500, skip: int = 0):
+async def get_unreviewed_questions(subject: str = None, topic: str = None, difficulty: str = None, search: str = None, limit: int = 500, skip: int = 0):
     """Fetch unreviewed questions from the staging queue."""
     col = get_unreviewed_collection()
     if col is None:
@@ -274,9 +274,15 @@ async def get_unreviewed_questions(subject: str = None, limit: int = 500, skip: 
     query = {}
     if subject and subject.strip() and subject.strip().lower() != "all":
         query["subject"] = {"$regex": f"^{subject.strip()}$", "$options": "i"}
+    if topic and topic.strip() and topic.strip().lower() != "all":
+        query["topic"] = {"$regex": f"^{topic.strip()}$", "$options": "i"}
+    if difficulty and difficulty.strip() and difficulty.strip().lower() != "all":
+        query["label"] = difficulty.strip().lower()
+    if search and search.strip():
+        query["questionText"] = {"$regex": search.strip(), "$options": "i"}
 
     total_count = await col.count_documents(query)
-    cursor = col.find(query).sort("_id", 1).skip(skip).limit(limit)
+    cursor = col.find(query).sort("_id", -1).skip(skip).limit(limit)
     questions = []
     async for doc in cursor:
         doc["id"] = str(doc["_id"])
