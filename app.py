@@ -5,9 +5,11 @@ from fastapi import FastAPI, UploadFile, File, Form, Response, HTTPException, Re
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from pdf_parser import parse_pdf_questions
+from pdf_parser import parse_pdf_questions, parse_raw_text_questions
 from gemini_service import generate_ai_hint
-from database import connect_to_mongo, close_mongo_connection, get_db
+from database import connect_to_mongo, close_mongo_connection, get_db, get_unreviewed_collection, get_reviewed_collection
+from bson.objectid import ObjectId
+import random
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -170,6 +172,51 @@ async def parse_document_endpoint(
         "questions": questions
     }
 
+@app.post("/api/parse-text")
+@app.post("/parse-text")
+async def parse_text_endpoint(request: Request):
+    """Parses raw copy-pasted text containing MCQs into structured JSON."""
+    data = await request.json()
+    raw_text = data.get("text", "")
+    subject = data.get("subject", "English")
+    topic = data.get("topic", None)
+    subtopic = data.get("subtopic", None)
+    api_key = data.get("apiKey", None)
+    provider = data.get("llmProvider", "gemini")
+    model = data.get("model", "gemini-2.0-flash")
+    use_ai_topics = data.get("useAiTopics", False)
+    use_ai_extraction = data.get("useAiExtraction", False)
+    custom_prompt = data.get("customPrompt", None)
+
+    if not raw_text or not raw_text.strip():
+        raise HTTPException(status_code=400, detail="Text content is required for parsing.")
+
+    try:
+        questions = parse_raw_text_questions(
+            raw_text=raw_text,
+            subject=subject,
+            default_topic=topic.strip() if topic else None,
+            default_subtopic=subtopic.strip() if subtopic else None,
+            api_key=api_key.strip() if api_key else None,
+            provider=provider,
+            model=model,
+            use_ai_topics=use_ai_topics,
+            use_ai_extraction=use_ai_extraction,
+            custom_prompt=custom_prompt.strip() if custom_prompt else None
+        )
+        return {
+            "status": "success",
+            "subject": subject,
+            "count": len(questions),
+            "questions": questions
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Text parsing failed: {str(e)}")
+
 @app.post("/api/download-json")
 @app.post("/download-json")
 async def download_json_endpoint(request: Request):
@@ -181,75 +228,340 @@ async def download_json_endpoint(request: Request):
     }
     return Response(content=json_bytes, media_type="application/json", headers=headers)
 
-@app.get("/api/questions")
-async def get_questions():
-    """Fetch all questions from the Question Bank."""
-    db = get_db()
-    if db is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
-    questions_cursor = db.question_bank.find({})
-    questions = []
-    async for doc in questions_cursor:
-        doc["id"] = str(doc["_id"])
-        del doc["_id"]
-        questions.append(doc)
-    return {"status": "success", "questions": questions}
+# ==========================================
+# GUY A: UNREVIEWED STAGING DATABASE ENDPOINTS
+# ==========================================
 
-@app.post("/api/questions")
-async def add_question(request: Request):
-    """Add a single question to the Question Bank."""
-    db = get_db()
-    if db is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
-    question_data = await request.json()
-    result = await db.question_bank.insert_one(question_data)
-    question_data["id"] = str(result.inserted_id)
-    if "_id" in question_data:
-        del question_data["_id"]
-    return {"status": "success", "message": "Question added to bank", "question": question_data}
-
-@app.post("/api/questions/bulk")
-async def add_questions_bulk(request: Request):
-    """Add multiple questions to the Question Bank."""
-    db = get_db()
-    if db is None:
+@app.post("/api/unreviewed-questions/bulk")
+async def add_unreviewed_questions_bulk(request: Request):
+    """Guy A (Parser) sends parsed questions to the unreviewed staging queue."""
+    col = get_unreviewed_collection()
+    if col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
     data = await request.json()
     questions = data.get("questions", [])
     if not questions:
         raise HTTPException(status_code=400, detail="No questions provided")
-    
-    await db.question_bank.insert_many(questions)
-    return {"status": "success", "message": f"{len(questions)} questions added to bank"}
 
-@app.delete("/api/questions/{question_id}")
-async def delete_question(question_id: str):
-    """Delete a question from the Question Bank by ID."""
-    from bson.objectid import ObjectId
-    db = get_db()
-    if db is None:
+    import datetime
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    
+    docs_to_insert = []
+    for q in questions:
+        doc = dict(q)
+        if "id" in doc and not "_id" in doc:
+            del doc["id"]
+        doc["status"] = "unreviewed"
+        doc["isUsed"] = False
+        if "createdAt" not in doc:
+            doc["createdAt"] = now_iso
+        docs_to_insert.append(doc)
+
+    result = await col.insert_many(docs_to_insert)
+    return {
+        "status": "success",
+        "message": f"{len(result.inserted_ids)} questions successfully sent to Review Queue (Staging DB)",
+        "count": len(result.inserted_ids)
+    }
+
+@app.get("/api/unreviewed-questions")
+async def get_unreviewed_questions(subject: str = None, limit: int = 500, skip: int = 0):
+    """Fetch unreviewed questions from the staging queue."""
+    col = get_unreviewed_collection()
+    if col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
+    
+    query = {}
+    if subject and subject.strip() and subject.strip().lower() != "all":
+        query["subject"] = {"$regex": f"^{subject.strip()}$", "$options": "i"}
+
+    total_count = await col.count_documents(query)
+    cursor = col.find(query).sort("_id", 1).skip(skip).limit(limit)
+    questions = []
+    async for doc in cursor:
+        doc["id"] = str(doc["_id"])
+        del doc["_id"]
+        questions.append(doc)
+
+    return {
+        "status": "success",
+        "total": total_count,
+        "count": len(questions),
+        "questions": questions
+    }
+
+@app.get("/api/unreviewed-questions/stats")
+async def get_unreviewed_stats():
+    """Returns counts and statistics of unreviewed questions waiting for Guy B."""
+    col = get_unreviewed_collection()
+    if col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    total = await col.count_documents({})
+    english_cnt = await col.count_documents({"subject": {"$regex": "^english$", "$options": "i"}})
+    quants_cnt = await col.count_documents({"subject": {"$regex": "^quants$", "$options": "i"}})
+    lrdi_cnt = await col.count_documents({"subject": {"$regex": "^(lrdi|logical reasoning|data interpretation)$", "$options": "i"}})
+
+    reviewed_col = get_reviewed_collection()
+    reviewed_total = await reviewed_col.count_documents({}) if reviewed_col is not None else 0
+
+    return {
+        "status": "success",
+        "unreviewedTotal": total,
+        "reviewedTotal": reviewed_total,
+        "bySubject": {
+            "English": english_cnt,
+            "Quants": quants_cnt,
+            "LRDI": lrdi_cnt
+        }
+    }
+
+# ==========================================
+# GUY B: REVIEWER QUEUE & APPROVAL WORKFLOW
+# ==========================================
+
+@app.get("/api/review-queue/next")
+async def get_next_review_question(index: int = 0, subject: str = None):
+    """Fetch a single question by queue index for focused one-by-one review."""
+    col = get_unreviewed_collection()
+    if col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    query = {}
+    if subject and subject.strip() and subject.strip().lower() != "all":
+        query["subject"] = {"$regex": f"^{subject.strip()}$", "$options": "i"}
+
+    total = await col.count_documents(query)
+    if total == 0 or index >= total:
+        return {"status": "empty", "total": total, "question": None}
+
+    cursor = col.find(query).sort("_id", 1).skip(index).limit(1)
+    doc = None
+    async for d in cursor:
+        doc = d
+        break
+
+    if not doc:
+        return {"status": "empty", "total": total, "question": None}
+
+    doc["id"] = str(doc["_id"])
+    del doc["_id"]
+    return {
+        "status": "success",
+        "total": total,
+        "currentIndex": index,
+        "question": doc
+    }
+
+@app.put("/api/review-queue/{question_id}")
+async def update_unreviewed_draft(question_id: str, request: Request):
+    """Saves draft edits to an unreviewed question while in queue."""
+    col = get_unreviewed_collection()
+    if col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    updated_data = await request.json()
+    if "id" in updated_data:
+        del updated_data["id"]
+    if "_id" in updated_data:
+        del updated_data["_id"]
+
     try:
-        res = await db.question_bank.delete_one({"_id": ObjectId(question_id)})
-        if res.deleted_count == 1:
-            return {"status": "success", "message": "Question deleted"}
-        else:
-            raise HTTPException(status_code=404, detail="Question not found")
+        res = await col.update_one({"_id": ObjectId(question_id)}, {"$set": updated_data})
+        if res.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Question not found in staging queue")
+        return {"status": "success", "message": "Draft updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.delete("/api/review-queue/{question_id}")
+async def reject_unreviewed_question(question_id: str):
+    """Guy B rejects and permanently deletes an invalid question from the staging queue."""
+    col = get_unreviewed_collection()
+    if col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    try:
+        res = await col.delete_one({"_id": ObjectId(question_id)})
+        if res.deleted_count == 1:
+            return {"status": "success", "message": "Question rejected and removed from queue"}
+        else:
+            raise HTTPException(status_code=404, detail="Question not found in staging queue")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.put("/api/review-queue/{question_id}/approve")
+async def approve_and_push_question(question_id: str, request: Request):
+    """
+    Guy B grants and approves the question.
+    Saves reviewer's edits, inserts into reviewed_questions database,
+    and removes it from unreviewed_questions staging queue.
+    """
+    unreviewed_col = get_unreviewed_collection()
+    reviewed_col = get_reviewed_collection()
+    if unreviewed_col is None or reviewed_col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    payload = await request.json()
+    import datetime
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+    try:
+        obj_id = ObjectId(question_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid question ID")
+
+    # If reviewer supplied full updated object, use it; otherwise fetch from staging
+    existing_doc = await unreviewed_col.find_one({"_id": obj_id})
+    
+    doc_to_save = dict(existing_doc) if existing_doc else {}
+    if "_id" in doc_to_save:
+        del doc_to_save["_id"]
+
+    # Merge reviewer payload
+    for key, val in payload.items():
+        if key not in ["_id", "id"]:
+            doc_to_save[key] = val
+
+    doc_to_save["status"] = "reviewed"
+    doc_to_save["isUsed"] = False
+    doc_to_save["reviewedAt"] = now_iso
+
+    # Insert into reviewed_questions collection
+    insert_res = await reviewed_col.insert_one(doc_to_save)
+    doc_to_save["id"] = str(insert_res.inserted_id)
+    if "_id" in doc_to_save:
+        del doc_to_save["_id"]
+
+    # Remove from unreviewed staging collection
+    if existing_doc:
+        await unreviewed_col.delete_one({"_id": obj_id})
+
+    # Return remaining unreviewed count for smooth queue progression
+    remaining_unreviewed = await unreviewed_col.count_documents({})
+
+    return {
+        "status": "success",
+        "message": "Question approved and pushed to Reviewed Question Bank!",
+        "reviewedId": str(insert_res.inserted_id),
+        "remainingUnreviewed": remaining_unreviewed,
+        "question": doc_to_save
+    }
+
+# ==========================================
+# REVIEWED QUESTION BANK ENDPOINTS
+# ==========================================
+
+@app.get("/api/reviewed-questions")
+@app.get("/api/questions")
+async def get_reviewed_questions(subject: str = None, topic: str = None, difficulty: str = None, search: str = None):
+    """Fetch all vetted questions from the Reviewed Question Bank."""
+    col = get_reviewed_collection()
+    if col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    query = {}
+    if subject and subject.strip() and subject.strip().lower() != "all":
+        query["subject"] = {"$regex": f"^{subject.strip()}$", "$options": "i"}
+    if topic and topic.strip() and topic.strip().lower() != "all":
+        query["topic"] = {"$regex": f"^{topic.strip()}$", "$options": "i"}
+    if difficulty and difficulty.strip() and difficulty.strip().lower() != "all":
+        query["label"] = difficulty.strip().lower()
+    if search and search.strip():
+        query["questionText"] = {"$regex": search.strip(), "$options": "i"}
+
+    cursor = col.find(query).sort("_id", -1)
+    questions = []
+    async for doc in cursor:
+        doc["id"] = str(doc["_id"])
+        del doc["_id"]
+        questions.append(doc)
+
+    return {
+        "status": "success",
+        "count": len(questions),
+        "questions": questions
+    }
+
+@app.post("/api/reviewed-questions")
+async def add_reviewed_question_direct(request: Request):
+    """Directly add a question to the Reviewed Question Bank."""
+    col = get_reviewed_collection()
+    if col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    question_data = await request.json()
+    if "_id" in question_data:
+        del question_data["_id"]
+    question_data["status"] = "reviewed"
+    question_data["isUsed"] = False
+    
+    result = await col.insert_one(question_data)
+    question_data["id"] = str(result.inserted_id)
+    if "_id" in question_data:
+        del question_data["_id"]
+    return {"status": "success", "message": "Question added to Reviewed Bank", "question": question_data}
+
+@app.put("/api/reviewed-questions/{question_id}")
+async def update_reviewed_question(question_id: str, request: Request):
+    """Update a question in the Reviewed Question Bank."""
+    col = get_reviewed_collection()
+    if col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    updated_data = await request.json()
+    if "id" in updated_data:
+        del updated_data["id"]
+    if "_id" in updated_data:
+        del updated_data["_id"]
+
+    try:
+        res = await col.update_one({"_id": ObjectId(question_id)}, {"$set": updated_data})
+        if res.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Question not found in Reviewed Bank")
+        return {"status": "success", "message": "Reviewed question updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete("/api/reviewed-questions/{question_id}")
+@app.delete("/api/questions/{question_id}")
+async def delete_reviewed_question(question_id: str):
+    """Delete a question from the Reviewed Question Bank by ID."""
+    col = get_reviewed_collection()
+    if col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    try:
+        res = await col.delete_one({"_id": ObjectId(question_id)})
+        if res.deleted_count == 1:
+            return {"status": "success", "message": "Question deleted from Reviewed Bank"}
+        else:
+            raise HTTPException(status_code=404, detail="Question not found in Reviewed Bank")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/reviewed-questions/reset-used")
+@app.post("/api/questions/reset-used")
+async def reset_used_reviewed_questions():
+    """Resets the isUsed status back to false for all questions in Reviewed Question Bank."""
+    col = get_reviewed_collection()
+    if col is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    result = await col.update_many({}, {"$set": {"isUsed": False}})
+    return {"status": "success", "message": f"Reset {result.modified_count} reviewed questions back to unused status"}
+
+# ==========================================
+# MOCK / SECTION TEST GENERATOR (FROM REVIEWED DB)
+# ==========================================
+
 @app.post("/api/mock-tests/generate")
 async def generate_mock_test(request: Request):
-    """Generates a Mock Test paper from Question Bank based on subject counts & difficulty percentages."""
-    import random
-    from bson.objectid import ObjectId
-    
-    db = get_db()
-    if db is None:
+    """
+    Generates a Mock or Sectional Test paper STRICTLY from the Reviewed Question Bank (reviewed_questions).
+    Applies subject quotas and difficulty percentages (easy/medium/hard), tracking isUsed flags.
+    """
+    col = get_reviewed_collection()
+    if col is None:
         raise HTTPException(status_code=500, detail="Database not connected")
     
     payload = await request.json()
-    subject_counts = payload.get("subjectCounts", {}) # e.g. {"English": 10, "Quants": 10}
+    subject_counts = payload.get("subjectCounts", {}) # e.g. {"English": 10, "Quants": 10, "LRDI": 5}
     difficulty = payload.get("difficulty", {"easy": 30, "medium": 50, "hard": 20})
     exclude_used = payload.get("excludeUsed", True)
 
@@ -275,6 +587,8 @@ async def generate_mock_test(request: Request):
             ("hard", hard_target)
         ]
 
+        subj_picked_ids = set()
+
         for label, count in tier_targets:
             if count <= 0:
                 continue
@@ -283,27 +597,53 @@ async def generate_mock_test(request: Request):
             if exclude_used:
                 query["isUsed"] = {"$ne": True}
 
-            cursor = db.question_bank.find(query)
+            cursor = col.find(query)
             matching_docs = await cursor.to_list(length=1000)
 
-            # Fallback if not enough unused questions exist
+            # Fallback to used questions if not enough unused exist
             if len(matching_docs) < count and exclude_used:
                 query_fallback = {"subject": {"$regex": f"^{subj}$", "$options": "i"}, "label": label.lower()}
-                cursor_fb = db.question_bank.find(query_fallback)
+                cursor_fb = col.find(query_fallback)
                 matching_docs = await cursor_fb.to_list(length=1000)
 
-            if matching_docs:
-                picked = random.sample(matching_docs, min(count, len(matching_docs)))
+            # Filter out already picked
+            available = [d for d in matching_docs if d["_id"] not in subj_picked_ids]
+            if available:
+                picked = random.sample(available, min(count, len(available)))
                 for doc in picked:
+                    subj_picked_ids.add(doc["_id"])
                     ids_to_mark_used.append(doc["_id"])
                     doc["id"] = str(doc["_id"])
                     del doc["_id"]
                     doc["isUsed"] = True
                     selected_questions.append(doc)
 
-    # Mark selected questions as used in MongoDB
+        # Backfill if we still need more questions for this subject
+        needed = total_q - len(subj_picked_ids)
+        if needed > 0:
+            query_general = {"subject": {"$regex": f"^{subj}$", "$options": "i"}}
+            if exclude_used:
+                query_general["isUsed"] = {"$ne": True}
+            cursor_gen = col.find(query_general)
+            gen_docs = await cursor_gen.to_list(length=1000)
+            if len(gen_docs) < needed and exclude_used:
+                cursor_gen_all = col.find({"subject": {"$regex": f"^{subj}$", "$options": "i"}})
+                gen_docs = await cursor_gen_all.to_list(length=1000)
+
+            available_gen = [d for d in gen_docs if d["_id"] not in subj_picked_ids]
+            if available_gen:
+                picked_gen = random.sample(available_gen, min(needed, len(available_gen)))
+                for doc in picked_gen:
+                    subj_picked_ids.add(doc["_id"])
+                    ids_to_mark_used.append(doc["_id"])
+                    doc["id"] = str(doc["_id"])
+                    del doc["_id"]
+                    doc["isUsed"] = True
+                    selected_questions.append(doc)
+
+    # Mark selected questions as used in MongoDB reviewed_questions
     if ids_to_mark_used:
-        await db.question_bank.update_many(
+        await col.update_many(
             {"_id": {"$in": ids_to_mark_used}},
             {"$set": {"isUsed": True}}
         )
@@ -313,15 +653,6 @@ async def generate_mock_test(request: Request):
         "count": len(selected_questions),
         "questions": selected_questions
     }
-
-@app.post("/api/questions/reset-used")
-async def reset_used_questions():
-    """Resets the isUsed status back to false for all questions in the Question Bank."""
-    db = get_db()
-    if db is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
-    result = await db.question_bank.update_many({}, {"$set": {"isUsed": False}})
-    return {"status": "success", "message": f"Reset {result.modified_count} questions back to unused status"}
 
 # Serve static frontend files (if static folder exists)
 if os.path.exists("static"):

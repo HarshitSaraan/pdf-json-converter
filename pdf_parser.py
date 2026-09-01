@@ -68,8 +68,9 @@ def format_math_latex(text: str) -> str:
     # Remove markdown headings and '###'
     text = re.sub(r'#+\s*', '', text)
 
-    # Convert display LaTeX \[...\] or $$...$$ to inline $...$
+    # Convert display LaTeX \[...\] or $$...$$ and \(...\) to inline $...$
     text = text.replace(r'\[', '$').replace(r'\]', '$')
+    text = text.replace(r'\(', '$').replace(r'\)', '$')
     text = text.replace('$$', '$')
 
     # Remove newlines inside $...$ to ensure inline-safety (same line)
@@ -89,9 +90,23 @@ def format_math_latex(text: str) -> str:
 
     # Clean up whitespace
     text = re.sub(r'[ \t]+', ' ', text)
-    lines = [line.strip() for line in text.splitlines()]
-    text = "\n".join(lines).strip()
-    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    # Normalize multiline paragraphs (join accidental line breaks within sentences)
+    paragraphs = re.split(r'\n\s*\n', text)
+    cleaned_paras = []
+    for p in paragraphs:
+        lines = [l.strip() for l in p.splitlines() if l.strip()]
+        if not lines:
+            continue
+        joined = [lines[0]]
+        for line in lines[1:]:
+            # If line looks like a list item or numbered step (e.g. 1., a), -, *, •), keep newline
+            if re.match(r'^(?:\d+[\.\)]|[A-Za-z][\.\)]|[-*•])\s+', line):
+                joined.append('\n' + line)
+            else:
+                joined.append(' ' + line)
+        cleaned_paras.append(''.join(joined))
+    text = '\n\n'.join(cleaned_paras).strip()
     return text
 
 
@@ -533,8 +548,8 @@ Return ONLY a valid JSON array of objects with the exact classification:
 
     return questions
 
-def parse_pdf_questions(
-    file_path: str,
+def parse_raw_text_questions(
+    raw_text: str,
     subject: str = "English",
     default_topic: str = None,
     default_subtopic: str = None,
@@ -545,13 +560,12 @@ def parse_pdf_questions(
     use_ai_extraction: bool = False,
     custom_prompt: str = None
 ) -> list:
+    r"""
+    Parses raw text (from copy-paste or document extraction) containing MCQs into structured JSON.
+    Supports markdown bold formatting (**Question 41.**, **(A)**, **Correct Option: (C)**, ---),
+    plain formatting, inline LaTeX math ($...$, \(...\)), and explanations/hints.
     """
-    Parses a question paper PDF or DOCX into JSON.
-    When API keys are available and use_ai_extraction is True, Stage 1 uses AI-only extraction directly from the PDF text.
-    If no API key is provided, use_ai_extraction is False, or AI extraction returns 0 questions, local regex parser runs as fallback.
-    """
-    text = extract_raw_text(file_path)
-    if not text or not text.strip():
+    if not raw_text or not raw_text.strip():
         return []
 
     has_gemini_key = bool(api_key and api_key.strip()) or bool(os.environ.get("GEMINI_API_KEY", "").strip())
@@ -560,89 +574,131 @@ def parse_pdf_questions(
     # STAGE 1: AI-ONLY EXTRACTION (PRIMARY STAGE WHEN ENABLED AND API KEYS ARE AVAILABLE)
     # =========================================================================
     if use_ai_extraction and has_gemini_key:
-        ai_questions = parse_with_gemini_fallback(text, subject=subject, api_key=api_key)
-
+        ai_questions = parse_with_gemini_fallback(raw_text, subject=subject, api_key=api_key)
         if ai_questions and len(ai_questions) > 0:
             if use_ai_topics:
                 ai_questions = classify_topics_with_ai(ai_questions, subject=subject, api_key=api_key, provider=provider, model=model)
             return ai_questions
 
     # =========================================================================
-    # STAGE 2: LOCAL REGEX PARSER (FALLBACK WHEN NO API KEY OR AI FINDS 0 QUESTIONS)
+    # STAGE 2: ROBUST MULTI-PATTERN REGEX PARSER
     # =========================================================================
-    q_marker_pattern = r'(?:^|\n)\s*(?:Q(?:uestion)?\s*[-.]?\s*\d+[:\.-]?|\b\d+[\.\):-]|(?:\([0-9]+\)))\s*'
-    matches = list(re.finditer(q_marker_pattern, text, re.MULTILINE | re.IGNORECASE))
+    text = raw_text.replace('\r\n', '\n').replace('\r', '\n').strip()
 
-    question_blocks = []
-    for i in range(len(matches)):
-        start_idx = matches[i].start()
-        end_idx = matches[i+1].start() if i + 1 < len(matches) else len(text)
-        block_text = text[start_idx:end_idx].strip()
-        question_blocks.append(block_text)
+    # Step 1: Split into question blocks
+    separator_pattern = r'\n\s*(?:---+|\*\*\*+|___+)\s*\n'
+    if re.search(separator_pattern, text):
+        raw_blocks = [b.strip() for b in re.split(separator_pattern, text) if b.strip()]
+    else:
+        # Priority 2: Explicit Question / Q markers (e.g. **Question 1.**, Question 1., Q1., Q. 1)
+        explicit_q_pat = r'(?:^|\n)\s*(?:\*{0,2}(?:Q(?:uestion)?\s*[-.]?\s*\d+[:\.-]?)\*{0,2})\s*'
+        m_list = list(re.finditer(explicit_q_pat, text, re.IGNORECASE))
+        if m_list and len(m_list) > 1:
+            raw_blocks = []
+            for i in range(len(m_list)):
+                start_idx = m_list[i].start()
+                end_idx = m_list[i+1].start() if i + 1 < len(m_list) else len(text)
+                block = text[start_idx:end_idx].strip()
+                if block:
+                    raw_blocks.append(block)
+        else:
+            # Priority 3: Numbered questions (e.g. 1. Question... \n\n 2. Question...)
+            numbered_q_pat = r'(?:^|\n\n+)\s*(?:\*{0,2}\b\d+[\.\)]\*{0,2})\s+'
+            num_list = list(re.finditer(numbered_q_pat, text))
+            if num_list and len(num_list) > 1:
+                raw_blocks = []
+                for i in range(len(num_list)):
+                    start_idx = num_list[i].start()
+                    end_idx = num_list[i+1].start() if i + 1 < len(num_list) else len(text)
+                    block = text[start_idx:end_idx].strip()
+                    if block:
+                        raw_blocks.append(block)
+            else:
+                raw_blocks = [text]
 
     parsed_questions = []
 
-    for block in question_blocks:
-        marker_match = re.match(r'^(Q(?:uestion)?\s*[-.]?\s*\d+[:\.-]?|\d+[\.\):-]|(?:\([0-9]+\)))\s*', block, re.IGNORECASE)
+    for block in raw_blocks:
+        if not block.strip():
+            continue
+
+        # Strip leading question marker like **Question 41.**, Question 41., Q.1, 1.
+        marker_match = re.match(
+            r'^\s*(?:\*{0,2}(?:Q(?:uestion)?\s*[-.]?\s*\d+[:\.-]?|\b\d+[\.\):-])\*{0,2})\s*',
+            block,
+            re.IGNORECASE
+        )
+
         body = block
+        q_num = None
         if marker_match:
+            digits = re.search(r'\d+', marker_match.group(0))
+            if digits:
+                q_num = digits.group(0)
             body = block[marker_match.end():].strip()
 
-        sol_parts = []
         correct_letter = ""
+        ans_patterns = [
+            r'(?:^|\n|\s{2,})(?:\*{0,2})\b(?:Correct Option|Correct Answer|Answer|Ans|Key)\b\s*[:=-]?\s*(?:\*{0,2})\s*[\(\[]?([A-Ea-e1-5])[\)\]]?(?:\*{0,2})',
+            r'\(?(?:Ans|Answer|Correct Option|Correct Answer)\s*[:=-]\s*[\(\[]?([A-Ea-e1-5])[\)\]]?\)?'
+        ]
 
-        ans_inline_match = re.search(r'\(?(?:Ans|Answer|Correct Option):\s*([A-E0-9a-zA-Z]+)\)?', body, re.IGNORECASE)
-        if ans_inline_match:
-            ans_val = ans_inline_match.group(1).strip().upper()
-            if ans_val in ['A', 'B', 'C', 'D', 'E']:
-                correct_letter = ans_val
-            sol_parts.append(f"Correct Answer: {ans_val}")
-            body = body[:ans_inline_match.start()].strip() + "\n" + body[ans_inline_match.end():].strip()
-        
         explanation_parts = []
-        
-        exp_match = re.search(r'(?:Explanation|Solution|Sol|Hint|Reason|Rationale):\s*(.*?)(?=(?:Why the other options are wrong:|Correct Answer:|Answer:|Key:|$))', body, re.DOTALL | re.IGNORECASE)
+
+        # Extract Explanations / Solutions / Hints with word boundaries
+        exp_match = re.search(
+            r'(?:^|\n)\s*(?:\*{0,2})\b(?:Explanation|Solution|Sol|Hint|Reason|Rationale)\b\s*[:=-]?\s*(?:\*{0,2})\s*(.*?)(?=(?:Why the other options are wrong:|(?:\*{0,2})\b(?:Correct Answer|Correct Option|Answer|Ans|Key)\b|$))',
+            body,
+            re.DOTALL | re.IGNORECASE
+        )
         if exp_match:
             exp_text = exp_match.group(1).strip()
             if exp_text and len(exp_text) > 2:
                 explanation_parts.append(exp_text)
+            body = body[:exp_match.start()].strip() + "\n" + body[exp_match.end():].strip()
 
-        why_wrong_match = re.search(r'Why the other options are wrong:?\s*(.*?)(?=(?:Q\s*\d+[:\.]|Question\s+\d+[:\.]|\b\d+[\.\)]|$))', body, re.DOTALL | re.IGNORECASE)
+        why_wrong_match = re.search(
+            r'(?:^|\n)\s*(?:\*{0,2})Why the other options are wrong:?\s*(?:\*{0,2})\s*(.*?)(?=(?:(?:\*{0,2})(?:Q(?:uestion)?\s*[-.]?\s*\d+[:\.-]?|\b\d+[\.\):-])\*{0,2})|$)',
+            body,
+            re.DOTALL | re.IGNORECASE
+        )
         if why_wrong_match:
             why_text = why_wrong_match.group(1).strip()
             if why_text and len(why_text) > 2:
                 explanation_parts.append("Why the other options are wrong:\n" + why_text)
+            body = body[:why_wrong_match.start()].strip() + "\n" + body[why_wrong_match.end():].strip()
 
-        clean_body = body
-        if why_wrong_match:
-            clean_body = clean_body[:why_wrong_match.start()].strip()
-        if exp_match:
-            clean_body = clean_body[:exp_match.start()].strip()
+        # Extract correct answer
+        for pat in ans_patterns:
+            ans_m = re.search(pat, body, re.IGNORECASE)
+            if ans_m:
+                raw_letter = ans_m.group(1).upper()
+                if raw_letter.isdigit():
+                    l_num = int(raw_letter)
+                    if 1 <= l_num <= 5:
+                        correct_letter = chr(64 + l_num)
+                else:
+                    correct_letter = raw_letter
+                body = body[:ans_m.start()].strip() + "\n" + body[ans_m.end():].strip()
+                break
 
-        if not correct_letter:
-            ans_match = re.search(r'(?:Correct Answer|Correct Option|Answer|Key):\s*([A-E])\)?\s*(.*)', clean_body, re.IGNORECASE)
-            if ans_match:
-                correct_letter = ans_match.group(1).upper()
-                ans_extra = ans_match.group(2).strip()
-                if ans_extra:
-                    explanation_parts.append(ans_extra)
-                clean_body = clean_body[:ans_match.start()].strip()
+        # Options regex: **(A)**, (A), [A], A., A), **(1)**, (1), 1., 1)
+        opt_regex = r'(?:^|\n|\s{2,})(?:\*{0,2})(?:\(([A-Ea-e1-5])\)|\[([A-Ea-e1-5])\]|([A-Ea-e1-5])[\.\):-])(?:\*{0,2})\s*'
+        opt_start_match = re.search(opt_regex, body)
 
-        opt_start_match = re.search(r'(?:^|\n|\s{2,})(?:([A-Ea-e1-5])[\.\):\:-]|\(([A-Ea-e1-5])\))\s*', clean_body)
-        
         if opt_start_match:
-            question_text = clean_body[:opt_start_match.start()].strip()
-            options_text = clean_body[opt_start_match.start():].strip()
+            question_text = body[:opt_start_match.start()].strip()
+            options_text = body[opt_start_match.start():].strip()
         else:
-            question_text = clean_body.strip()
+            question_text = body.strip()
             options_text = ""
 
         raw_options = []
         if options_text:
-            opt_matches = list(re.finditer(r'(?:^|\n|\s{2,})(?:([A-Ea-e1-5])[\.\):\:-]|\(([A-Ea-e1-5])\))', options_text))
+            opt_matches = list(re.finditer(opt_regex, options_text))
             for idx in range(len(opt_matches)):
                 op_m = opt_matches[idx]
-                letter = (op_m.group(1) or op_m.group(2)).upper()
+                letter = (op_m.group(1) or op_m.group(2) or op_m.group(3)).upper()
                 if letter.isdigit():
                     letter_num = int(letter)
                     if 1 <= letter_num <= 5:
@@ -654,10 +710,7 @@ def parse_pdf_questions(
 
         formatted_options = []
         for letter, opt_val in raw_options:
-            is_corr = False
-            if correct_letter:
-                is_corr = (letter == correct_letter)
-
+            is_corr = (letter == correct_letter) if correct_letter else False
             formatted_options.append({
                 "text": format_math_latex(opt_val),
                 "isCorrect": is_corr
@@ -668,16 +721,11 @@ def parse_pdf_questions(
                 if letter == correct_letter:
                     opt["isCorrect"] = True
 
-        if explanation_parts:
-            hint = "\n\n".join(explanation_parts)
-        else:
-            hint = ""
+        hint = "\n\n".join(explanation_parts) if explanation_parts else ""
 
         q_num_str = str(len(parsed_questions) + 1)
-        if marker_match:
-            digits = re.search(r'\d+', marker_match.group(0))
-            if digits:
-                q_num_str = digits.group(0)
+        if q_num:
+            q_num_str = str(q_num)
 
         if len(question_text) > 120 and ("passage" in question_text.lower() or len(question_text.splitlines()) > 3):
             last_passage = question_text
@@ -698,6 +746,7 @@ def parse_pdf_questions(
                 "topic": default_topic or auto_top,
                 "subtopic": default_subtopic or auto_sub,
                 "label": "medium",
+                "subject": subject,
                 "options": formatted_options
             })
 
@@ -707,6 +756,41 @@ def parse_pdf_questions(
         return parsed_questions
 
     return []
+
+
+def parse_pdf_questions(
+    file_path: str,
+    subject: str = "English",
+    default_topic: str = None,
+    default_subtopic: str = None,
+    api_key: str = None,
+    provider: str = "gemini",
+    model: str = "gemini-2.0-flash",
+    use_ai_topics: bool = False,
+    use_ai_extraction: bool = False,
+    custom_prompt: str = None
+) -> list:
+    """
+    Parses a question paper PDF or DOCX into JSON by extracting raw text
+    and passing it to parse_raw_text_questions.
+    """
+    text = extract_raw_text(file_path)
+    if not text or not text.strip():
+        return []
+
+    return parse_raw_text_questions(
+        raw_text=text,
+        subject=subject,
+        default_topic=default_topic,
+        default_subtopic=default_subtopic,
+        api_key=api_key,
+        provider=provider,
+        model=model,
+        use_ai_topics=use_ai_topics,
+        use_ai_extraction=use_ai_extraction,
+        custom_prompt=custom_prompt
+    )
+
 
 
 

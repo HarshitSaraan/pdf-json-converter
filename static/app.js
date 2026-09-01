@@ -1,10 +1,44 @@
 document.addEventListener('DOMContentLoaded', () => {
   
-  // App State
-  let questionsData = [];
+  // App Global State
+  let questionsData = []; // Guy A: Parsed questions in current session
   let selectedFile = null;
 
-  // DOM Elements
+  // API Base URL resolution
+  const API_BASE = (window.location.protocol === 'file:') 
+    ? 'http://127.0.0.1:8000' 
+    : '';
+
+  // DOM Elements - Navigation & Modes
+  const modeParserBtn = document.getElementById('modeParserBtn');
+  const modeReviewerBtn = document.getElementById('modeReviewerBtn');
+  const modeReviewedBankBtn = document.getElementById('modeReviewedBankBtn');
+  const modeAddSingleBtn = document.getElementById('modeAddSingleBtn');
+  const modeMockBtn = document.getElementById('modeMockBtn');
+  const navPendingReviewBadge = document.getElementById('navPendingReviewBadge');
+
+  // Role Gateway Screen & Navigation Elements
+  const roleGatewayScreen = document.getElementById('roleGatewayScreen');
+  const selectRoleParserBtn = document.getElementById('selectRoleParserBtn');
+  const selectRoleReviewerBtn = document.getElementById('selectRoleReviewerBtn');
+  const switchRoleNavBtn = document.getElementById('switchRoleNavBtn');
+  const activeRoleNavLabel = document.getElementById('activeRoleNavLabel');
+  const gatewayPendingBadge = document.getElementById('gatewayPendingBadge');
+
+  let currentRole = localStorage.getItem('questify_user_role') || null;
+
+  const parserSection = document.getElementById('parserSection');
+  const reviewerSection = document.getElementById('reviewerSection');
+  const reviewedBankSection = document.getElementById('reviewedBankSection');
+  const singleQSection = document.getElementById('singleQSection');
+  const mockGeneratorSection = document.getElementById('mockGeneratorSection');
+
+  // Guy A Elements
+  const parserTabDocBtn = document.getElementById('parserTabDocBtn');
+  const parserTabPasteBtn = document.getElementById('parserTabPasteBtn');
+  const parserDocUploadCard = document.getElementById('parserDocUploadCard');
+  const parserPasteCard = document.getElementById('parserPasteCard');
+
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('fileInput');
   const filePreviewCard = document.getElementById('filePreviewCard');
@@ -13,47 +47,45 @@ document.addEventListener('DOMContentLoaded', () => {
   const removeFileBtn = document.getElementById('removeFileBtn');
   const parsePdfBtn = document.getElementById('parsePdfBtn');
   const loadSampleBtn = document.getElementById('loadSampleBtn');
-  
   const progressContainer = document.getElementById('progressContainer');
   const progressBar = document.getElementById('progressBar');
   const progressText = document.getElementById('progressText');
-  
+
+  const rawTextInput = document.getElementById('rawTextInput');
+  const parseTextBtn = document.getElementById('parseTextBtn');
+  const loadPasteSampleBtn = document.getElementById('loadPasteSampleBtn');
+  const pasteClipboardBtn = document.getElementById('pasteClipboardBtn');
+  const clearPasteTextBtn = document.getElementById('clearPasteTextBtn');
+  const pasteProgressContainer = document.getElementById('pasteProgressContainer');
+  const pasteProgressBar = document.getElementById('pasteProgressBar');
+  const pasteProgressText = document.getElementById('pasteProgressText');
+  const useAiTopicsCheckbox = document.getElementById('useAiTopicsCheckbox');
+  const useAiExtractionCheckbox = document.getElementById('useAiExtractionCheckbox');
+  const pasteUseAiTopicsCheckbox = document.getElementById('pasteUseAiTopicsCheckbox');
+  const pasteUseAiExtractionCheckbox = document.getElementById('pasteUseAiExtractionCheckbox');
+
   const workspaceSection = document.getElementById('workspaceSection');
   const questionsList = document.getElementById('questionsList');
   const questionCountBadge = document.getElementById('questionCountBadge');
-  
-  const viewCardsBtn = document.getElementById('viewCardsBtn');
-  const viewQbBtn = document.getElementById('viewQbBtn');
-  const viewJsonBtn = document.getElementById('viewJsonBtn');
-  const cardsView = document.getElementById('cardsView');
-  const qbView = document.getElementById('qbView');
-  const qbList = document.getElementById('qbList');
-  const jsonView = document.getElementById('jsonView');
-  const jsonCodeDisplay = document.getElementById('jsonCodeDisplay');
-  const addAllToQbBtn = document.getElementById('addAllToQbBtn');
-  
+  const selectAllParsedBtn = document.getElementById('selectAllParsedBtn');
+  const deselectAllParsedBtn = document.getElementById('deselectAllParsedBtn');
+  const pushToReviewQueueBtn = document.getElementById('pushToReviewQueueBtn');
   const searchInput = document.getElementById('searchInput');
   const bulkTopicInput = document.getElementById('bulkTopicInput');
   const applyBulkTopicBtn = document.getElementById('applyBulkTopicBtn');
-  
-  const addQuestionBtn = document.getElementById('addQuestionBtn');
-  const copyJsonBtn = document.getElementById('copyJsonBtn');
+  const autoGenerateAllHintsBtn = document.getElementById('autoGenerateAllHintsBtn');
   const downloadJsonBtn = document.getElementById('downloadJsonBtn');
-  
-  // AI Engine Settings Elements
+
+  // AI & Auth Elements
   const aiSettingsBtn = document.getElementById('aiSettingsBtn');
   const aiModalOverlay = document.getElementById('aiModalOverlay');
   const closeAiModalBtn = document.getElementById('closeAiModalBtn');
   const cancelAiModalBtn = document.getElementById('cancelAiModalBtn');
+  const saveAiModalBtn = document.getElementById('saveAiModalBtn');
   const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
   const chatgptApiKeyInput = document.getElementById('chatgptApiKeyInput');
   const chatgptModelSelect = document.getElementById('chatgptModelSelect');
-  const geminiConfigBox = document.getElementById('geminiConfigBox');
-  const chatgptConfigBox = document.getElementById('chatgptConfigBox');
-  const autoGenerateAllHintsBtn = document.getElementById('autoGenerateAllHintsBtn');
-  const useAiTopicsCheckbox = document.getElementById('useAiTopicsCheckbox');
 
-  // Subject Prompts Modal Elements
   const promptSettingsBtn = document.getElementById('promptSettingsBtn');
   const promptsModalOverlay = document.getElementById('promptsModalOverlay');
   const closePromptsModalBtn = document.getElementById('closePromptsModalBtn');
@@ -71,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const insertQuestionVar = document.getElementById('insertQuestionVar');
   const insertOptsVar = document.getElementById('insertOptsVar');
 
-  // Google Authentication & Email Whitelist Settings
+  // Google Auth
   const GOOGLE_CLIENT_ID = "1095943139935-bv47gtem4cjn9rihb2s74ccht9sq2tss.apps.googleusercontent.com";
   const ALLOWED_EMAILS = [
     "cnandini828@gmail.com",
@@ -79,7 +111,6 @@ document.addEventListener('DOMContentLoaded', () => {
     "thepreproute@gmail.com",
     "harshitsaraan@gmail.com"
   ];
-
   const googleSignInContainer = document.getElementById('googleSignInContainer');
   const userProfileBox = document.getElementById('userProfileBox');
   const userAvatarImg = document.getElementById('userAvatarImg');
@@ -89,7 +120,62 @@ document.addEventListener('DOMContentLoaded', () => {
   const accessDeniedModalOverlay = document.getElementById('accessDeniedModalOverlay');
   const accessDeniedMsg = document.getElementById('accessDeniedMsg');
   const closeAccessDeniedBtn = document.getElementById('closeAccessDeniedBtn');
+  const mainAppContainer = document.getElementById('mainAppContainer');
+  const authLockScreen = document.getElementById('authLockScreen');
+  const lockScreenGoogleBtnContainer = document.getElementById('lockScreenGoogleBtnContainer');
 
+  // =========================================================================
+  // TAXONOMY & SUBJECT CONFIG
+  // =========================================================================
+  const TAXONOMY = {
+    "English": {
+      "VA": ["RC", "Para Completion", "Para Jumbles", "Sentence Correction", "Spellings", "Verbal Analogy"],
+      "Vocabulary": ["Idioms & Phrases", "Antonyms", "Synonyms", "Definition"],
+      "Grammar": ["Active & Passive Voice", "Direct & Indirect Speech", "Error", "Punctuations", "Parts of Speech", "Subject–Verb Agreement"]
+    },
+    "Quants": {
+      "Arithmetic": ["Averages", "Mixtures & Alligation", "Percentages", "Profit & Loss", "Ratio & Proportion", "SI/CI", "Time & Work", "Time–Speed–Distance"],
+      "Number System": ["Digit properties", "Divisibility rules", "Factorials", "Factorization", "Factors/Multiples", "HCF/LCM", "Integral Solution", "Miscellaneous", "Remainders", "Unit digits"],
+      "Algebra": ["Binomial Theorem", "Matrices & Determinants", "Algebraic identities", "Functions", "Indices & Surds", "Inequalities", "Linear/Quadratic equations", "Maxima & Minima", "Modulus", "Polynomials", "Progressions", "Sets"],
+      "Geometry & Mensuration": ["Area & Perimeter", "Circles", "Coordinate Geometry", "Heights & Distances", "Lines & Angles", "Polygons", "Quadrilaterals", "Solids", "Triangles", "Trigonometry"],
+      "Modern Maths": ["Binomial Theorem", "Logarithm", "Matrices & Determinants", "P & C", "Probability", "Set Theory"]
+    },
+    "LRDI": {
+      "Logical Reasoning": ["Arrangements", "Blood Relations", "Clocks & Calendars", "Coding-Decoding", "Direction Sense", "Syllogisms", "Series & Analogies", "Venn Diagrams"],
+      "Data Interpretation": ["Bar Charts", "Line Graphs", "Pie Charts", "Tables", "Caselets", "Data Sufficiency"]
+    }
+  };
+
+  let availableSubjects = JSON.parse(localStorage.getItem('custom_subjects') || '["English", "Quants", "LRDI"]');
+  let selectedSubject = availableSubjects[0] || 'English';
+
+  function getTopicsForSubject(subj) {
+    const s = subj || selectedSubject;
+    return TAXONOMY[s] ? Object.keys(TAXONOMY[s]) : ["General Topic", "Misc"];
+  }
+
+  function getSubtopicsForTopic(subj, topic) {
+    const s = subj || selectedSubject;
+    const subjData = TAXONOMY[s] || TAXONOMY["English"];
+    if (subjData && subjData[topic]) return subjData[topic];
+    for (let k in subjData) {
+      if (k.toLowerCase() === (topic || '').toLowerCase()) return subjData[k];
+    }
+    return [Object.values(subjData)[0]?.[0] || "General Subtopic"];
+  }
+
+  function chr(n) {
+    return String.fromCharCode(n);
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // =========================================================================
+  // AUTHENTICATION
+  // =========================================================================
   function parseJwtToken(token) {
     try {
       const base64Url = token.split('.')[1];
@@ -101,10 +187,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  const mainAppContainer = document.getElementById('mainAppContainer');
-  const authLockScreen = document.getElementById('authLockScreen');
-  const lockScreenGoogleBtnContainer = document.getElementById('lockScreenGoogleBtnContainer');
-
   function renderUserProfile(userData) {
     if (googleSignInContainer) googleSignInContainer.classList.add('hidden');
     if (userProfileBox) userProfileBox.classList.remove('hidden');
@@ -112,43 +194,45 @@ document.addEventListener('DOMContentLoaded', () => {
     if (userNameText) userNameText.textContent = userData.name || userData.email.split('@')[0];
     if (userEmailText) userEmailText.textContent = userData.email;
 
-    // Unlock App Workspace
     if (authLockScreen) authLockScreen.classList.add('hidden');
     if (mainAppContainer) mainAppContainer.classList.remove('hidden');
     if (promptSettingsBtn) promptSettingsBtn.classList.remove('hidden');
     if (aiSettingsBtn) aiSettingsBtn.classList.remove('hidden');
     updateStatusBadge('Ready', 'success');
+    fetchPendingReviewCount();
+
+    // Check if user has chosen a role (Parser vs Reviewer)
+    const savedRole = localStorage.getItem('questify_user_role');
+    if (savedRole && (savedRole === 'parser' || savedRole === 'reviewer')) {
+      hideRoleGateway();
+      switchMainMode(savedRole);
+    } else {
+      showRoleGateway();
+    }
   }
 
   function clearUserProfile() {
     localStorage.removeItem('google_user_session');
     if (userProfileBox) userProfileBox.classList.add('hidden');
     if (googleSignInContainer) googleSignInContainer.classList.remove('hidden');
-    
-    // Lock App Workspace
     if (mainAppContainer) mainAppContainer.classList.add('hidden');
     if (authLockScreen) authLockScreen.classList.remove('hidden');
     if (promptSettingsBtn) promptSettingsBtn.classList.add('hidden');
     if (aiSettingsBtn) aiSettingsBtn.classList.add('hidden');
     updateStatusBadge('Auth Required', 'danger');
-    
     initGoogleAuth();
   }
 
   function showAccessDenied(email) {
     if (accessDeniedMsg) {
-      accessDeniedMsg.innerHTML = `Access Denied for <strong>${escapeHtml(email)}</strong>.<br>Your account is not on the authorized user list for QuestifyJSON. Please sign in with an authorized email address.`;
+      accessDeniedMsg.innerHTML = `Access Denied for <strong>${escapeHtml(email)}</strong>.<br>Your account is not on the authorized user list.`;
     }
     if (accessDeniedModalOverlay) accessDeniedModalOverlay.classList.remove('hidden');
     if (window.google && google.accounts && google.accounts.id) {
       google.accounts.id.disableAutoSelect();
     }
-    
-    // Keep app locked
     if (mainAppContainer) mainAppContainer.classList.add('hidden');
     if (authLockScreen) authLockScreen.classList.remove('hidden');
-    if (promptSettingsBtn) promptSettingsBtn.classList.add('hidden');
-    if (aiSettingsBtn) aiSettingsBtn.classList.add('hidden');
   }
 
   if (closeAccessDeniedBtn) {
@@ -159,9 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (googleSignOutBtn) {
-    googleSignOutBtn.addEventListener('click', () => {
-      clearUserProfile();
-    });
+    googleSignOutBtn.addEventListener('click', clearUserProfile);
   }
 
   async function handleGoogleCredentialResponse(response) {
@@ -172,14 +254,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const email = jwtData.email.trim().toLowerCase();
-    
-    // Check local whitelist
     if (!ALLOWED_EMAILS.includes(email)) {
       showAccessDenied(email);
       return;
     }
 
-    // Verify with backend
     try {
       const authRes = await fetch(`${API_BASE}/api/auth/verify-google`, {
         method: 'POST',
@@ -208,13 +287,34 @@ document.addEventListener('DOMContentLoaded', () => {
     renderUserProfile(sessionData);
   }
 
+  const localBypassBtn = document.getElementById('localBypassBtn');
+
+  function bypassLocalAuth() {
+    const localAdminSession = {
+      email: "harshitsaraan@gmail.com",
+      name: "Harshit (Local Admin)",
+      picture: "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y",
+      credential: "local_dev_bypass"
+    };
+    localStorage.setItem('google_user_session', JSON.stringify(localAdminSession));
+    renderUserProfile(localAdminSession);
+  }
+
+  if (localBypassBtn) {
+    localBypassBtn.addEventListener('click', bypassLocalAuth);
+  }
+
   function initGoogleAuth() {
-    // Check saved session
+    const isLocalDev = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1' || 
+                       window.location.hostname === '' || 
+                       window.location.protocol === 'file:';
+
     const savedSession = localStorage.getItem('google_user_session');
     if (savedSession) {
       try {
         const userData = JSON.parse(savedSession);
-        if (userData && userData.email && ALLOWED_EMAILS.includes(userData.email.toLowerCase())) {
+        if (userData && userData.email && (ALLOWED_EMAILS.includes(userData.email.toLowerCase()) || isLocalDev)) {
           renderUserProfile(userData);
           return;
         }
@@ -223,13 +323,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Default locked state
+    // If running locally on localhost/127.0.0.1, auto-bypass to avoid OAuth origin mismatch
+    if (isLocalDev) {
+      bypassLocalAuth();
+      return;
+    }
+
     if (mainAppContainer) mainAppContainer.classList.add('hidden');
     if (authLockScreen) authLockScreen.classList.remove('hidden');
-    if (promptSettingsBtn) promptSettingsBtn.classList.add('hidden');
-    if (aiSettingsBtn) aiSettingsBtn.classList.add('hidden');
 
-    // Initialize Google Buttons in navbar and lock screen
     const checkGoogleInterval = setInterval(() => {
       if (window.google && google.accounts && google.accounts.id) {
         clearInterval(checkGoogleInterval);
@@ -265,8 +367,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 200);
   }
 
-  initGoogleAuth();
-
   // Load stored AI settings
   const savedGeminiKey = localStorage.getItem('gemini_api_key') || '';
   const savedChatgptKey = localStorage.getItem('chatgpt_api_key') || '';
@@ -276,241 +376,43 @@ document.addEventListener('DOMContentLoaded', () => {
   if (chatgptApiKeyInput) chatgptApiKeyInput.value = savedChatgptKey;
   if (chatgptModelSelect) chatgptModelSelect.value = savedChatgptModel;
 
-  // Default Prompt Templates for Subjects
-  const DEFAULT_PROMPTS = {
-    "English": `Generate the solution for the given Verbal Ability question in a clear, structured, and concise format.
-
-Start by identifying the relevant concept or reasoning approach required to solve the question. Explain the concept only to the extent necessary to understand why the correct option works.
-
-Then explain the question by directly referring to the given passage, sentence, word, grammar rule, or arrangement, depending on the question type.
-
-Option Elimination: Explain why the other options are incorrect in continuous prose without bullets or numbering.
-
-The final answer should always end with the correct option in a boxed format using LaTeX:
-\\boxed{\\text{Option X: [Correct Answer]}}
-
-Question:
-{question_text}
-
-Options:
-{opts_str}`,
-
-    "Quants": `Generate the solution for the given Quantitative Ability question in a clear, structured, and student-friendly format suitable for IPMAT, JIPMAT, and entrance examinations.
-
-Start by stating exactly what the question is asking us to find.
-
-Concept: Explain the mathematical concept being tested.
-
-Solution: Work through the question step by step. Explain the reasoning behind each major step and show all necessary calculations in LaTeX.
-
-The final answer should always be given separately at the end under the heading "Final Answer" in boxed LaTeX format:
-\\boxed{\\text{[Final answer]}}
-
-Question:
-{question_text}
-
-Options:
-{opts_str}`,
-
-    "LRDI": `Generate a clear, step-by-step solution for the given Logical Reasoning / Data Interpretation question.
-
-Identify the logical structure, given conditions, or data elements.
-
-Break down the puzzle, arrangement, chart, or condition step by step.
-
-Option Elimination: Briefly explain why incorrect options fail.
-
-Final Answer: End with boxed LaTeX format:
-\\boxed{\\text{Option X: [Correct Answer]}}
-
-Question:
-{question_text}
-
-Options:
-{opts_str}`
-  };
-
-  // Saved Custom Subjects and Prompts State
-  let availableSubjects = JSON.parse(localStorage.getItem('custom_subjects') || '["English", "Quants"]');
+  // Prompts State
   let subjectPrompts = JSON.parse(localStorage.getItem('subject_prompts') || '{}');
-
-  // Fill default prompts if missing
-  availableSubjects.forEach(sub => {
-    if (!subjectPrompts[sub] && DEFAULT_PROMPTS[sub]) {
-      subjectPrompts[sub] = DEFAULT_PROMPTS[sub];
-    } else if (!subjectPrompts[sub]) {
-      subjectPrompts[sub] = `Generate the solution for the given ${sub} question clearly step by step.\n\nFinal Answer:\n\\boxed{\\text{Option X: [Correct Answer]}}\n\nQuestion:\n{question_text}\n\nOptions:\n{opts_str}`;
-    }
-  });
 
   function getSubjectPrompt(subject) {
     if (subjectPrompts[subject] && subjectPrompts[subject].trim()) {
       return subjectPrompts[subject];
     }
-    return DEFAULT_PROMPTS[subject] || `Generate solution for ${subject}.\n\nQuestion:\n{question_text}\n\nOptions:\n{opts_str}`;
+    return `Generate clear step-by-step solution for ${subject}.\n\nQuestion:\n{question_text}\n\nOptions:\n{opts_str}`;
   }
 
-  let selectedSubject = availableSubjects[0] || 'English';
-  let activeModalSubject = selectedSubject;
-
-  // Render Subject Pills in Upload Card
+  // Render Subject Pills in Parser Hub
   function renderMainSubjectPillList() {
-    const subjectPillList = document.getElementById('subjectPillList');
-    if (!subjectPillList) return;
-    subjectPillList.innerHTML = '';
-    availableSubjects.forEach(sub => {
-      const btn = document.createElement('button');
-      btn.className = `subject-pill ${sub === selectedSubject ? 'active' : ''}`;
-      let icon = 'fa-book-open';
-      if (sub === 'Quants') icon = 'fa-calculator';
-      else if (sub === 'LRDI') icon = 'fa-diagram-project';
-      btn.innerHTML = `<i class="fa-solid ${icon}"></i> ${sub}`;
-      btn.addEventListener('click', () => {
-        selectedSubject = sub;
-        renderMainSubjectPillList();
+    ['subjectPillList', 'pasteSubjectPillList'].forEach(id => {
+      const pillList = document.getElementById(id);
+      if (!pillList) return;
+      pillList.innerHTML = '';
+      const subjects = Object.keys(TAXONOMY);
+      subjects.forEach(sub => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `subject-pill ${sub === selectedSubject ? 'active' : ''}`;
+        let icon = 'fa-book-open';
+        if (sub === 'Quants') icon = 'fa-calculator';
+        else if (sub === 'LRDI') icon = 'fa-diagram-project';
+        btn.innerHTML = `<i class="fa-solid ${icon}"></i> ${sub}`;
+        btn.addEventListener('click', () => {
+          selectedSubject = sub;
+          renderMainSubjectPillList();
+        });
+        pillList.appendChild(btn);
       });
-      subjectPillList.appendChild(btn);
     });
   }
 
   renderMainSubjectPillList();
 
-  // Subject Prompts Modal Handlers
-  function renderModalSubjectTabs() {
-    if (!modalSubjectTabs) return;
-    modalSubjectTabs.innerHTML = '';
-    availableSubjects.forEach(sub => {
-      const btn = document.createElement('button');
-      btn.className = `subject-pill ${sub === activeModalSubject ? 'active' : ''}`;
-      btn.innerHTML = `<i class="fa-solid fa-book"></i> ${sub}`;
-      btn.addEventListener('click', () => {
-        if (subjectPromptTextarea) {
-          subjectPrompts[activeModalSubject] = subjectPromptTextarea.value;
-        }
-        activeModalSubject = sub;
-        renderModalSubjectTabs();
-        loadActiveSubjectPromptIntoTextarea();
-      });
-      modalSubjectTabs.appendChild(btn);
-    });
-  }
-
-  function loadActiveSubjectPromptIntoTextarea() {
-    if (activeSubjectPromptLabel) {
-      activeSubjectPromptLabel.innerHTML = `<i class="fa-solid fa-terminal"></i> Custom Prompt & Conditions for <strong>${activeModalSubject}</strong>:`;
-    }
-    if (subjectPromptTextarea) {
-      subjectPromptTextarea.value = getSubjectPrompt(activeModalSubject);
-    }
-  }
-
-  if (promptSettingsBtn) {
-    promptSettingsBtn.addEventListener('click', () => {
-      activeModalSubject = selectedSubject || availableSubjects[0] || 'English';
-      renderModalSubjectTabs();
-      loadActiveSubjectPromptIntoTextarea();
-      if (addSubjectInlineBox) addSubjectInlineBox.classList.add('hidden');
-      promptsModalOverlay.classList.remove('hidden');
-    });
-  }
-
-  const closePromptsModal = () => promptsModalOverlay.classList.add('hidden');
-  if (closePromptsModalBtn) closePromptsModalBtn.addEventListener('click', closePromptsModal);
-  if (cancelPromptsModalBtn) cancelPromptsModalBtn.addEventListener('click', closePromptsModal);
-
-  if (savePromptsModalBtn) {
-    savePromptsModalBtn.addEventListener('click', () => {
-      if (subjectPromptTextarea) {
-        subjectPrompts[activeModalSubject] = subjectPromptTextarea.value;
-      }
-      localStorage.setItem('custom_subjects', JSON.stringify(availableSubjects));
-      localStorage.setItem('subject_prompts', JSON.stringify(subjectPrompts));
-      renderMainSubjectPillList();
-      closePromptsModal();
-      alert('Subject Prompts & Conditions saved successfully!');
-    });
-  }
-
-  if (resetPromptBtn) {
-    resetPromptBtn.addEventListener('click', () => {
-      if (confirm(`Reset prompt for "${activeModalSubject}" to system default?`)) {
-        if (DEFAULT_PROMPTS[activeModalSubject]) {
-          subjectPrompts[activeModalSubject] = DEFAULT_PROMPTS[activeModalSubject];
-        } else {
-          subjectPrompts[activeModalSubject] = `Generate the solution for the given ${activeModalSubject} question clearly step by step.\n\nFinal Answer:\n\\boxed{\\text{Option X: [Correct Answer]}}\n\nQuestion:\n{question_text}\n\nOptions:\n{opts_str}`;
-        }
-        loadActiveSubjectPromptIntoTextarea();
-      }
-    });
-  }
-
-  if (addNewSubjectBtn) {
-    addNewSubjectBtn.addEventListener('click', () => {
-      if (addSubjectInlineBox) {
-        addSubjectInlineBox.classList.remove('hidden');
-        if (newSubjectNameInput) {
-          newSubjectNameInput.value = '';
-          newSubjectNameInput.focus();
-        }
-      }
-    });
-  }
-
-  if (cancelAddSubjectBtn) {
-    cancelAddSubjectBtn.addEventListener('click', () => {
-      if (addSubjectInlineBox) addSubjectInlineBox.classList.add('hidden');
-    });
-  }
-
-  if (confirmAddSubjectBtn) {
-    confirmAddSubjectBtn.addEventListener('click', () => {
-      const sName = newSubjectNameInput ? newSubjectNameInput.value.trim() : '';
-      if (!sName) {
-        alert('Please enter a subject name.');
-        return;
-      }
-      if (!availableSubjects.includes(sName)) {
-        availableSubjects.push(sName);
-        subjectPrompts[sName] = `Generate the solution for the given ${sName} question clearly step by step.\n\nFinal Answer:\n\\boxed{\\text{Option X: [Correct Answer]}}\n\nQuestion:\n{question_text}\n\nOptions:\n{opts_str}`;
-        activeModalSubject = sName;
-        renderModalSubjectTabs();
-        loadActiveSubjectPromptIntoTextarea();
-      } else {
-        activeModalSubject = sName;
-        renderModalSubjectTabs();
-        loadActiveSubjectPromptIntoTextarea();
-      }
-      if (addSubjectInlineBox) addSubjectInlineBox.classList.add('hidden');
-    });
-  }
-
-  if (insertQuestionVar) {
-    insertQuestionVar.addEventListener('click', () => {
-      if (subjectPromptTextarea) {
-        const start = subjectPromptTextarea.selectionStart;
-        const end = subjectPromptTextarea.selectionEnd;
-        const text = subjectPromptTextarea.value;
-        subjectPromptTextarea.value = text.substring(0, start) + '{question_text}' + text.substring(end);
-        subjectPromptTextarea.focus();
-        subjectPromptTextarea.selectionStart = subjectPromptTextarea.selectionEnd = start + 15;
-      }
-    });
-  }
-
-  if (insertOptsVar) {
-    insertOptsVar.addEventListener('click', () => {
-      if (subjectPromptTextarea) {
-        const start = subjectPromptTextarea.selectionStart;
-        const end = subjectPromptTextarea.selectionEnd;
-        const text = subjectPromptTextarea.value;
-        subjectPromptTextarea.value = text.substring(0, start) + '{opts_str}' + text.substring(end);
-        subjectPromptTextarea.focus();
-        subjectPromptTextarea.selectionStart = subjectPromptTextarea.selectionEnd = start + 10;
-      }
-    });
-  }
-
-  // AI Settings Modal handlers
+  // AI Modal Handlers
   if (aiSettingsBtn) {
     aiSettingsBtn.addEventListener('click', () => {
       if (geminiApiKeyInput) geminiApiKeyInput.value = localStorage.getItem('gemini_api_key') || '';
@@ -519,47 +421,321 @@ Options:
       aiModalOverlay.classList.remove('hidden');
     });
   }
-
   const closeAiModal = () => aiModalOverlay.classList.add('hidden');
   if (closeAiModalBtn) closeAiModalBtn.addEventListener('click', closeAiModal);
   if (cancelAiModalBtn) cancelAiModalBtn.addEventListener('click', closeAiModal);
-
   if (saveAiModalBtn) {
     saveAiModalBtn.addEventListener('click', () => {
-      const gKey = geminiApiKeyInput ? geminiApiKeyInput.value.trim() : '';
-      const cKey = chatgptApiKeyInput ? chatgptApiKeyInput.value.trim() : '';
-      const cModel = chatgptModelSelect ? chatgptModelSelect.value : 'gpt-4o-mini';
-
-      localStorage.setItem('gemini_api_key', gKey);
-      localStorage.setItem('chatgpt_api_key', cKey);
-      localStorage.setItem('chatgpt_model', cModel);
-      
+      localStorage.setItem('gemini_api_key', geminiApiKeyInput.value.trim());
+      localStorage.setItem('chatgpt_api_key', chatgptApiKeyInput.value.trim());
+      localStorage.setItem('chatgpt_model', chatgptModelSelect.value);
       closeAiModal();
       alert('AI Settings saved successfully!');
     });
   }
 
-  // Drag and drop handlers
-  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-    dropzone.addEventListener(eventName, preventDefaults, false);
-  });
+  // =========================================================================
+  // SUBJECT PROMPTS & CONDITIONS MODAL
+  // =========================================================================
+  let activeModalPromptSubject = 'English';
 
-  function preventDefaults(e) {
-    e.preventDefault();
-    e.stopPropagation();
+  function renderModalSubjectTabs() {
+    if (!modalSubjectTabs) return;
+    modalSubjectTabs.innerHTML = '';
+    const subjects = Object.keys(TAXONOMY);
+    availableSubjects.forEach(s => {
+      if (!subjects.includes(s)) subjects.push(s);
+    });
+
+    subjects.forEach(sub => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `subject-pill ${sub === activeModalPromptSubject ? 'active' : ''}`;
+      let icon = 'fa-book-open';
+      if (sub === 'Quants') icon = 'fa-calculator';
+      else if (sub === 'LRDI') icon = 'fa-diagram-project';
+      btn.innerHTML = `<i class="fa-solid ${icon}"></i> ${sub}`;
+      btn.addEventListener('click', () => {
+        if (subjectPromptTextarea) {
+          subjectPrompts[activeModalPromptSubject] = subjectPromptTextarea.value;
+        }
+        activeModalPromptSubject = sub;
+        renderModalSubjectTabs();
+        loadPromptForSubject(activeModalPromptSubject);
+      });
+      modalSubjectTabs.appendChild(btn);
+    });
   }
 
+  function loadPromptForSubject(sub) {
+    if (activeSubjectPromptLabel) {
+      activeSubjectPromptLabel.innerHTML = `<i class="fa-solid fa-terminal"></i> Custom Prompt for ${sub}:`;
+    }
+    if (subjectPromptTextarea) {
+      subjectPromptTextarea.value = getSubjectPrompt(sub);
+    }
+  }
+
+  function openPromptsModal() {
+    if (!promptsModalOverlay) return;
+    activeModalPromptSubject = selectedSubject || 'English';
+    renderModalSubjectTabs();
+    loadPromptForSubject(activeModalPromptSubject);
+    promptsModalOverlay.classList.remove('hidden');
+  }
+
+  function closePromptsModal() {
+    if (promptsModalOverlay) promptsModalOverlay.classList.add('hidden');
+    if (addSubjectInlineBox) addSubjectInlineBox.classList.add('hidden');
+  }
+
+  if (promptSettingsBtn) {
+    promptSettingsBtn.addEventListener('click', openPromptsModal);
+  }
+  if (closePromptsModalBtn) closePromptsModalBtn.addEventListener('click', closePromptsModal);
+  if (cancelPromptsModalBtn) cancelPromptsModalBtn.addEventListener('click', closePromptsModal);
+
+  if (savePromptsModalBtn) {
+    savePromptsModalBtn.addEventListener('click', () => {
+      if (subjectPromptTextarea) {
+        subjectPrompts[activeModalPromptSubject] = subjectPromptTextarea.value;
+      }
+      localStorage.setItem('subject_prompts', JSON.stringify(subjectPrompts));
+      closePromptsModal();
+      alert('All subject prompts saved successfully!');
+    });
+  }
+
+  if (resetPromptBtn) {
+    resetPromptBtn.addEventListener('click', () => {
+      const def = `Generate clear step-by-step solution for ${activeModalPromptSubject}.\n\nQuestion:\n{question_text}\n\nOptions:\n{opts_str}`;
+      if (subjectPromptTextarea) subjectPromptTextarea.value = def;
+      subjectPrompts[activeModalPromptSubject] = def;
+    });
+  }
+
+  if (insertQuestionVar && subjectPromptTextarea) {
+    insertQuestionVar.addEventListener('click', () => {
+      const cur = subjectPromptTextarea.selectionStart || subjectPromptTextarea.value.length;
+      const text = subjectPromptTextarea.value;
+      subjectPromptTextarea.value = text.slice(0, cur) + '{question_text}' + text.slice(cur);
+      subjectPromptTextarea.focus();
+    });
+  }
+
+  if (insertOptsVar && subjectPromptTextarea) {
+    insertOptsVar.addEventListener('click', () => {
+      const cur = subjectPromptTextarea.selectionStart || subjectPromptTextarea.value.length;
+      const text = subjectPromptTextarea.value;
+      subjectPromptTextarea.value = text.slice(0, cur) + '{opts_str}' + text.slice(cur);
+      subjectPromptTextarea.focus();
+    });
+  }
+
+  if (addNewSubjectBtn && addSubjectInlineBox) {
+    addNewSubjectBtn.addEventListener('click', () => {
+      addSubjectInlineBox.classList.toggle('hidden');
+      if (newSubjectNameInput) newSubjectNameInput.focus();
+    });
+  }
+
+  if (confirmAddSubjectBtn && newSubjectNameInput) {
+    confirmAddSubjectBtn.addEventListener('click', () => {
+      const name = newSubjectNameInput.value.trim();
+      if (!name) return;
+      if (!availableSubjects.includes(name)) {
+        availableSubjects.push(name);
+        localStorage.setItem('custom_subjects', JSON.stringify(availableSubjects));
+      }
+      if (!TAXONOMY[name]) {
+        TAXONOMY[name] = { "General": ["General"] };
+      }
+      newSubjectNameInput.value = '';
+      if (addSubjectInlineBox) addSubjectInlineBox.classList.add('hidden');
+      activeModalPromptSubject = name;
+      renderModalSubjectTabs();
+      renderMainSubjectPillList();
+      loadPromptForSubject(name);
+    });
+  }
+
+  if (cancelAddSubjectBtn && addSubjectInlineBox) {
+    cancelAddSubjectBtn.addEventListener('click', () => {
+      addSubjectInlineBox.classList.add('hidden');
+    });
+  }
+
+  // Role Gateway Screen & Navigation Helpers
+  function showRoleGateway() {
+    if (roleGatewayScreen) roleGatewayScreen.classList.remove('hidden');
+    fetchPendingReviewCount();
+  }
+
+  function hideRoleGateway() {
+    if (roleGatewayScreen) roleGatewayScreen.classList.add('hidden');
+  }
+
+  function applyRolePermissions(role) {
+    if (role === 'parser') {
+      if (modeReviewerBtn) modeReviewerBtn.classList.add('hidden');
+      if (modeParserBtn) modeParserBtn.classList.remove('hidden');
+      if (modeReviewedBankBtn) modeReviewedBankBtn.classList.remove('hidden');
+      if (modeAddSingleBtn) modeAddSingleBtn.classList.remove('hidden');
+      if (modeMockBtn) modeMockBtn.classList.remove('hidden');
+    } else if (role === 'reviewer') {
+      if (modeParserBtn) modeParserBtn.classList.add('hidden');
+      if (modeAddSingleBtn) modeAddSingleBtn.classList.add('hidden');
+      if (modeReviewerBtn) modeReviewerBtn.classList.remove('hidden');
+      if (modeReviewedBankBtn) modeReviewedBankBtn.classList.remove('hidden');
+      if (modeMockBtn) modeMockBtn.classList.remove('hidden');
+    }
+  }
+
+  function setUserRole(role) {
+    localStorage.setItem('questify_user_role', role);
+    hideRoleGateway();
+    applyRolePermissions(role);
+    if (role === 'parser') {
+      switchMainMode('parser');
+    } else if (role === 'reviewer') {
+      switchMainMode('reviewer');
+    }
+  }
+
+  window.selectUserRole = function(role) {
+    setUserRole(role);
+  };
+
+  const enterParserHubBtn = document.getElementById('enterParserHubBtn');
+  const enterReviewerStudioBtn = document.getElementById('enterReviewerStudioBtn');
+
+  if (enterParserHubBtn) {
+    enterParserHubBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setUserRole('parser');
+    });
+  }
+
+  if (enterReviewerStudioBtn) {
+    enterReviewerStudioBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setUserRole('reviewer');
+    });
+  }
+
+  if (selectRoleParserBtn) {
+    selectRoleParserBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setUserRole('parser');
+    });
+    selectRoleParserBtn.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setUserRole('parser');
+      }
+    });
+  }
+
+  if (selectRoleReviewerBtn) {
+    selectRoleReviewerBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setUserRole('reviewer');
+    });
+    selectRoleReviewerBtn.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setUserRole('reviewer');
+      }
+    });
+  }
+
+  if (switchRoleNavBtn) {
+    switchRoleNavBtn.addEventListener('click', showRoleGateway);
+  }
+
+  // =========================================================================
+  // PRIMARY NAVIGATION (5 MODES) & FULL-SCREEN REVIEWER STUDIO
+  // =========================================================================
+  function switchMainMode(activeMode) {
+    const role = localStorage.getItem('questify_user_role') || (activeMode === 'reviewer' ? 'reviewer' : 'parser');
+    applyRolePermissions(role);
+
+    [modeParserBtn, modeReviewerBtn, modeReviewedBankBtn, modeAddSingleBtn, modeMockBtn].forEach(b => b && b.classList.remove('active'));
+    [parserSection, reviewerSection, reviewedBankSection, singleQSection, mockGeneratorSection].forEach(s => s && s.classList.add('hidden'));
+
+    // Toggle Reviewer full-screen body class (hides footers and extra widgets)
+    if (activeMode === 'reviewer') {
+      document.body.classList.add('reviewer-mode');
+      if (activeRoleNavLabel) activeRoleNavLabel.textContent = 'Reviewer (Guy B)';
+    } else {
+      document.body.classList.remove('reviewer-mode');
+      if (activeRoleNavLabel) {
+        if (activeMode === 'parser') activeRoleNavLabel.textContent = 'Parser (Guy A)';
+        else if (activeMode === 'reviewed_bank') activeRoleNavLabel.textContent = 'Reviewed Bank';
+        else if (activeMode === 'single') activeRoleNavLabel.textContent = 'Add Question';
+        else if (activeMode === 'mock') activeRoleNavLabel.textContent = 'Mock Generator';
+      }
+    }
+
+    if (activeMode === 'parser') {
+      if (modeParserBtn) modeParserBtn.classList.add('active');
+      if (parserSection) parserSection.classList.remove('hidden');
+    } else if (activeMode === 'reviewer') {
+      if (modeReviewerBtn) modeReviewerBtn.classList.add('active');
+      if (reviewerSection) reviewerSection.classList.remove('hidden');
+      initReviewerPortal();
+    } else if (activeMode === 'reviewed_bank') {
+      if (modeReviewedBankBtn) modeReviewedBankBtn.classList.add('active');
+      if (reviewedBankSection) reviewedBankSection.classList.remove('hidden');
+      fetchReviewedBank();
+    } else if (activeMode === 'single') {
+      if (modeAddSingleBtn) modeAddSingleBtn.classList.add('active');
+      if (singleQSection) singleQSection.classList.remove('hidden');
+      initSingleQForm();
+    } else if (activeMode === 'mock') {
+      if (modeMockBtn) modeMockBtn.classList.add('active');
+      if (mockGeneratorSection) mockGeneratorSection.classList.remove('hidden');
+      initMockGeneratorForm();
+    }
+  }
+
+  if (modeParserBtn) modeParserBtn.addEventListener('click', () => switchMainMode('parser'));
+  if (modeReviewerBtn) modeReviewerBtn.addEventListener('click', () => switchMainMode('reviewer'));
+  if (modeReviewedBankBtn) modeReviewedBankBtn.addEventListener('click', () => switchMainMode('reviewed_bank'));
+  if (modeAddSingleBtn) modeAddSingleBtn.addEventListener('click', () => switchMainMode('single'));
+  if (modeMockBtn) modeMockBtn.addEventListener('click', () => switchMainMode('mock'));
+
+  // Parser Sub-tabs: Document Upload vs Paste Text
+  if (parserTabDocBtn && parserTabPasteBtn) {
+    parserTabDocBtn.addEventListener('click', () => {
+      parserTabDocBtn.classList.add('active');
+      parserTabPasteBtn.classList.remove('active');
+      if (parserDocUploadCard) parserDocUploadCard.classList.remove('hidden');
+      if (parserPasteCard) parserPasteCard.classList.add('hidden');
+    });
+    parserTabPasteBtn.addEventListener('click', () => {
+      parserTabPasteBtn.classList.add('active');
+      parserTabDocBtn.classList.remove('active');
+      if (parserPasteCard) parserPasteCard.classList.remove('hidden');
+      if (parserDocUploadCard) parserDocUploadCard.classList.add('hidden');
+      renderMainSubjectPillList();
+    });
+  }
+
+  // =========================================================================
+  // GUY A: PARSE DOCUMENTS & RAW TEXT
+  // =========================================================================
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropzone.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+  });
   ['dragenter', 'dragover'].forEach(eventName => {
     dropzone.addEventListener(eventName, () => dropzone.classList.add('dragover'), false);
   });
-
   ['dragleave', 'drop'].forEach(eventName => {
     dropzone.addEventListener(eventName, () => dropzone.classList.remove('dragover'), false);
   });
-
   dropzone.addEventListener('drop', (e) => {
-    const dt = e.dataTransfer;
-    const files = dt.files;
+    const files = e.dataTransfer.files;
     if (files.length > 0) {
       const ext = files[0].name.split('.').pop().toLowerCase();
       if (['pdf', 'docx', 'doc'].includes(ext)) {
@@ -592,11 +768,6 @@ Options:
     parsePdfBtn.disabled = true;
   });
 
-  // API Base URL resolution
-  const API_BASE = (window.location.protocol === 'file:') 
-    ? 'http://127.0.0.1:8000' 
-    : '';
-
   function showProgress(text, percent) {
     if (progressContainer) progressContainer.classList.remove('hidden');
     if (progressBar) progressBar.style.width = percent + '%';
@@ -614,17 +785,15 @@ Options:
   parsePdfBtn.addEventListener('click', async () => {
     if (!selectedFile) return;
 
-    const llmProvider = 'gemini'; // Enforce Gemini for document parsing
     const geminiApiKey = localStorage.getItem('gemini_api_key') || '';
-
     const customPrompt = getSubjectPrompt(selectedSubject);
     const useAiTopics = useAiTopicsCheckbox ? useAiTopicsCheckbox.checked : false;
-    const useAiExtraction = document.getElementById('useAiExtractionCheckbox') ? document.getElementById('useAiExtractionCheckbox').checked : false;
+    const useAiExtraction = useAiExtractionCheckbox ? useAiExtractionCheckbox.checked : false;
 
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('subject', selectedSubject);
-    formData.append('llmProvider', llmProvider);
+    formData.append('llmProvider', 'gemini');
     formData.append('model', 'gemini-2.0-flash');
     formData.append('useAiTopics', useAiTopics ? 'true' : 'false');
     formData.append('useAiExtraction', useAiExtraction ? 'true' : 'false');
@@ -649,22 +818,23 @@ Options:
       }
 
       showProgress('Extracting questions & options...', 70);
-
       const data = await response.json();
-      
       showProgress('Rendering preview cards...', 100);
       
       setTimeout(() => {
         progressContainer.classList.add('hidden');
         if (data.questions && data.questions.length > 0) {
-          questionsData = data.questions;
-          questionsData.forEach(q => { if (!q.subject) q.subject = selectedSubject; });
-          renderQuestions();
+          questionsData = data.questions.map(q => ({
+            ...q,
+            subject: q.subject || selectedSubject,
+            isSelected: true
+          }));
+          renderParsedQuestions();
           workspaceSection.classList.remove('hidden');
           workspaceSection.scrollIntoView({ behavior: 'smooth' });
           updateStatusBadge('Parsed Successfully', 'success');
         } else {
-          alert('No questions could be extracted from this document. Please check file format.');
+          alert('No questions could be extracted from this document. Please verify format.');
         }
       }, 400);
 
@@ -674,172 +844,183 @@ Options:
     }
   });
 
-  // Full Taxonomy Definition
-  const TAXONOMY = {
-    "English": {
-      "VA": ["RC", "Para Completion", "Para Jumbles", "Sentence Correction", "Spellings", "Verbal Analogy"],
-      "Vocabulary": ["Idioms & Phrases", "Antonyms", "Synonyms", "Definition"],
-      "Grammar": ["Active & Passive Voice", "Direct & Indirect Speech", "Error", "Punctuations", "Parts of Speech", "Subject–Verb Agreement"]
-    },
-    "Quants": {
-      "Arithmetic": ["Averages", "Mixtures & Alligation", "Percentages", "Profit & Loss", "Ratio & Proportion", "SI/CI", "Time & Work", "Time–Speed–Distance"],
-      "Number System": ["Digit properties", "Divisibility rules", "Factorials", "Factorization", "Factors/Multiples", "HCF/LCM", "Integral Solution", "Miscellaneous", "Remainders", "Unit digits"],
-      "Algebra": ["Binomial Theorem", "Matrices & Determinants", "Algebraic identities", "Functions", "Indices & Surds", "Inequalities", "Linear/Quadratic equations", "Maxima & Minima", "Modulus", "Polynomials", "Progressions", "Sets"],
-      "Geometry & Mensuration": ["Area & Perimeter", "Circles", "Coordinate Geometry", "Heights & Distances", "Lines & Angles", "Polygons", "Quadrilaterals", "Solids", "Triangles", "Trigonometry"],
-      "Modern Maths": ["Binomial Theorem", "Logarithm", "Matrices & Determinants", "P & C", "Probability", "Set Theory"]
-    },
-    "LRDI": {
-      "Logical Reasoning": ["Arrangements", "Blood Relations", "Clocks & Calendars", "Coding-Decoding", "Direction Sense", "Syllogisms", "Series & Analogies", "Venn Diagrams"],
-      "Data Interpretation": ["Bar Charts", "Line Graphs", "Pie Charts", "Tables", "Caselets", "Data Sufficiency"]
-    }
-  };
+  // Paste Text Parser
+  const SAMPLE_PASTE_TEXT = `**Question 1.**\nA trader buys 75 kg of rice at ₹44 per kg and 45 kg at ₹68 per kg. During cleaning, 5% of the total weight is lost. He sells two-thirds of the remaining mixture at ₹65 per kg and the rest at ₹59 per kg. If mixing and transportation cost ₹162, determine his net result.\n\n**(A)** ₹822 profit\n**(B)** ₹498 profit\n**(C)** ₹660 profit\n**(D)** ₹660 loss\n\n**Correct Option: (C)**\n**Hint:** Calculate total cost price, net weight after 5% loss, and total revenue.\n\n---\n\n**Question 2.**\nIf $x^2 - 7x + 12 = 0$, find the value of $x$.\n\n**(A)** $3, 4$\n**(B)** $2, 6$\n**(C)** $-3, -4$\n**(D)** $1, 12$\n\n**Correct Option: (A)**\n**Hint:** Factorize $(x-3)(x-4) = 0$.`;
 
-  function getTopicsForSubject(subj) {
-    const s = subj || selectedSubject;
-    return TAXONOMY[s] ? Object.keys(TAXONOMY[s]) : ["General Topic", "Misc"];
+  if (loadPasteSampleBtn) {
+    loadPasteSampleBtn.addEventListener('click', () => {
+      if (rawTextInput) {
+        rawTextInput.value = SAMPLE_PASTE_TEXT;
+        selectedSubject = 'Quants';
+        renderMainSubjectPillList();
+        rawTextInput.focus();
+      }
+    });
   }
 
-  function getSubtopicsForTopic(subj, topic) {
-    if (arguments.length === 1) {
-      topic = subj;
-      subj = selectedSubject;
-    }
-    const s = subj || selectedSubject;
-    const subjData = TAXONOMY[s] || TAXONOMY["English"];
-    if (subjData && subjData[topic]) return subjData[topic];
-    for (let k in subjData) {
-      if (k.toLowerCase() === (topic || '').toLowerCase()) return subjData[k];
-    }
-    return [Object.values(subjData)[0]?.[0] || "General Subtopic"];
+  if (loadSampleBtn) {
+    loadSampleBtn.addEventListener('click', () => {
+      parserTabPasteBtn.click();
+      if (rawTextInput) {
+        rawTextInput.value = SAMPLE_PASTE_TEXT;
+        selectedSubject = 'Quants';
+        renderMainSubjectPillList();
+        rawTextInput.focus();
+      }
+    });
   }
 
-  // Render Questions Cards
-  function renderQuestions() {
+  if (clearPasteTextBtn) {
+    clearPasteTextBtn.addEventListener('click', () => {
+      if (rawTextInput) { rawTextInput.value = ''; rawTextInput.focus(); }
+    });
+  }
+
+  if (pasteClipboardBtn) {
+    pasteClipboardBtn.addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text && rawTextInput) { rawTextInput.value = text; rawTextInput.focus(); }
+      } catch (err) {
+        alert('Could not read clipboard. Please paste manually into the text box.');
+      }
+    });
+  }
+
+  if (parseTextBtn) {
+    parseTextBtn.addEventListener('click', async () => {
+      const text = rawTextInput ? rawTextInput.value.trim() : '';
+      if (!text) {
+        alert('Please paste or enter questions text to extract.');
+        return;
+      }
+
+      const geminiApiKey = localStorage.getItem('gemini_api_key') || '';
+      const customPrompt = getSubjectPrompt(selectedSubject);
+      const useAiTopics = pasteUseAiTopicsCheckbox ? pasteUseAiTopicsCheckbox.checked : false;
+      const useAiExtraction = pasteUseAiExtractionCheckbox ? pasteUseAiExtractionCheckbox.checked : false;
+
+      if (pasteProgressContainer) pasteProgressContainer.classList.remove('hidden');
+      if (pasteProgressBar) pasteProgressBar.style.width = '40%';
+      parseTextBtn.disabled = true;
+
+      try {
+        const response = await fetch(`${API_BASE}/api/parse-text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: text,
+            subject: selectedSubject,
+            llmProvider: 'gemini',
+            model: 'gemini-2.0-flash',
+            apiKey: geminiApiKey,
+            useAiTopics: useAiTopics,
+            useAiExtraction: useAiExtraction,
+            customPrompt: customPrompt
+          })
+        });
+
+        if (!response.ok) {
+          let errDetails = response.statusText;
+          try {
+            const errObj = await response.json();
+            if (errObj && errObj.detail) errDetails = errObj.detail;
+          } catch(e) {}
+          throw new Error(`Server Status ${response.status}: ${errDetails}`);
+        }
+
+        const data = await response.json();
+        if (pasteProgressBar) pasteProgressBar.style.width = '100%';
+
+        setTimeout(() => {
+          if (pasteProgressContainer) pasteProgressContainer.classList.add('hidden');
+          if (data.questions && data.questions.length > 0) {
+            questionsData = data.questions.map(q => ({
+              ...q,
+              subject: q.subject || selectedSubject,
+              isSelected: true
+            }));
+            renderParsedQuestions();
+            if (workspaceSection) {
+              workspaceSection.classList.remove('hidden');
+              workspaceSection.scrollIntoView({ behavior: 'smooth' });
+            }
+            updateStatusBadge('Parsed Successfully', 'success');
+          } else {
+            alert('No questions could be extracted. Please check formatting.');
+          }
+        }, 300);
+
+      } catch (err) {
+        if (pasteProgressContainer) pasteProgressContainer.classList.add('hidden');
+        alert('Error parsing text: ' + err.message);
+      } finally {
+        parseTextBtn.disabled = false;
+      }
+    });
+  }
+
+  // Render Parsed Questions Cards (Guy A View)
+  function renderParsedQuestions() {
+    if (!questionsList) return;
     questionsList.innerHTML = '';
     questionCountBadge.textContent = `${questionsData.length} Questions`;
-    
-    const filterQuery = searchInput.value.toLowerCase().trim();
+
+    const filterQuery = (searchInput ? searchInput.value : '').toLowerCase().trim();
 
     questionsData.forEach((q, qIndex) => {
       if (!q.subject) q.subject = selectedSubject;
 
-      // Search filter check
       if (filterQuery) {
-        const matchQ = q.questionText.toLowerCase().includes(filterQuery);
-        const matchHint = q.hint.toLowerCase().includes(filterQuery);
+        const matchQ = (q.questionText || '').toLowerCase().includes(filterQuery);
+        const matchHint = (q.hint || '').toLowerCase().includes(filterQuery);
         const matchTopic = (q.topic || '').toLowerCase().includes(filterQuery);
-        const matchOpts = q.options.some(o => o.text.toLowerCase().includes(filterQuery));
+        const matchOpts = (q.options || []).some(o => (o.text || '').toLowerCase().includes(filterQuery));
         if (!matchQ && !matchHint && !matchTopic && !matchOpts) return;
       }
 
       const card = document.createElement('div');
-      card.className = 'question-card';
+      card.className = `question-card ${q.isSelected ? 'selected' : ''}`;
       card.dataset.index = qIndex;
 
       let optionsHtml = '';
-      q.options.forEach((opt, optIndex) => {
+      (q.options || []).forEach((opt, optIndex) => {
         optionsHtml += `
           <div class="option-row ${opt.isCorrect ? 'correct' : ''}">
-            <input type="radio" name="correct_q_${qIndex}" class="radio-custom" 
-              ${opt.isCorrect ? 'checked' : ''} data-qindex="${qIndex}" data-optindex="${optIndex}">
-            <input type="text" class="option-input" value="${escapeHtml(opt.text)}" 
-              data-qindex="${qIndex}" data-optindex="${optIndex}">
+            <input type="radio" name="parsed_correct_${qIndex}" class="radio-custom" ${opt.isCorrect ? 'checked' : ''} data-qindex="${qIndex}" data-optindex="${optIndex}">
+            <input type="text" class="option-input parsed-opt-text" value="${escapeHtml(opt.text)}" data-qindex="${qIndex}" data-optindex="${optIndex}">
             ${opt.isCorrect ? '<span class="correct-badge"><i class="fa-solid fa-check"></i> Correct</span>' : ''}
-            <button class="btn btn-icon text-danger delete-opt-btn" data-qindex="${qIndex}" data-optindex="${optIndex}">
-              <i class="fa-solid fa-xmark"></i>
-            </button>
           </div>
         `;
       });
 
-      // Build Subject Dropdown Options
-      let subjectSelectOptionsHtml = '';
-      availableSubjects.forEach(sub => {
-        subjectSelectOptionsHtml += `<option value="${sub}" ${sub === q.subject ? 'selected' : ''}>${sub}</option>`;
-      });
-
-      // Build Topic Options based on Question Subject
-      const availableTopics = getTopicsForSubject(q.subject);
-      let currentTop = availableTopics.find(t => t.toLowerCase() === (q.topic || '').toLowerCase()) || availableTopics[0];
-      q.topic = currentTop;
-      
-      let topicSelectOptionsHtml = '';
-      availableTopics.forEach(t => {
-        topicSelectOptionsHtml += `<option value="${t}" ${t === currentTop ? 'selected' : ''}>${t}</option>`;
-      });
-
-      // Build Subtopic Options based on Topic
-      const subtopicsList = getSubtopicsForTopic(q.subject, currentTop);
-      let currentSub = subtopicsList.find(s => s.toLowerCase() === (q.subtopic || '').toLowerCase()) || subtopicsList[0];
-      q.subtopic = currentSub;
-
-      let subtopicSelectOptionsHtml = '';
-      subtopicsList.forEach(s => {
-        subtopicSelectOptionsHtml += `<option value="${s}" ${s === currentSub ? 'selected' : ''}>${s}</option>`;
-      });
-
-      // Label Options
-      const labels = ['easy', 'medium', 'hard'];
-      let labelSelectOptionsHtml = '';
-      labels.forEach(l => {
-        labelSelectOptionsHtml += `<option value="${l}" ${l === q.label ? 'selected' : ''}>${l.charAt(0).toUpperCase() + l.slice(1)}</option>`;
-      });
-
       card.innerHTML = `
-        <div class="card-header">
-          <span class="question-index"><i class="fa-solid fa-circle-question"></i> Question ${qIndex + 1}</span>
-          <div class="card-meta-inputs">
-            <select class="meta-select q-label-select" data-qindex="${qIndex}" title="Difficulty">
-              ${labelSelectOptionsHtml}
-            </select>
-            <select class="meta-select q-subject-select" data-qindex="${qIndex}" title="Subject">
-              ${subjectSelectOptionsHtml}
-            </select>
-            <select class="meta-select q-topic-select" data-qindex="${qIndex}" title="Topic">
-              ${topicSelectOptionsHtml}
-            </select>
-            <select class="meta-select q-subtopic-select" data-qindex="${qIndex}" title="Subtopic">
-              ${subtopicSelectOptionsHtml}
-            </select>
-            <button class="btn btn-sm btn-success add-to-qb-btn" data-qindex="${qIndex}" title="Save to Question Bank DB">
-              <i class="fa-solid fa-cloud-arrow-up"></i>
-            </button>
-            <button class="btn btn-icon text-danger delete-q-btn" data-qindex="${qIndex}" title="Delete Question">
-              <i class="fa-solid fa-trash"></i>
-            </button>
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <input type="checkbox" class="parsed-select-checkbox" data-qindex="${qIndex}" ${q.isSelected ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;">
+            <span class="question-index"><i class="fa-solid fa-circle-question"></i> Question ${qIndex + 1}</span>
+          </div>
+          <div class="card-meta-inputs" style="gap: 0.5rem; align-items: center;">
+            <span class="badge" style="background: var(--bg-input); border: 1px solid var(--border-color); font-size: 0.75rem; text-transform: uppercase; color: #818cf8;">${q.label || 'medium'}</span>
+            <span class="badge" style="background: var(--bg-input); border: 1px solid var(--border-color); font-size: 0.75rem;">${q.subject || 'English'}</span>
+            <span class="badge" style="background: var(--bg-input); border: 1px solid var(--border-color); font-size: 0.75rem;">${q.topic || 'General'}</span>
+            <button class="btn btn-icon text-danger parsed-del-q-btn" data-qindex="${qIndex}" title="Remove question"><i class="fa-solid fa-trash"></i></button>
           </div>
         </div>
 
         <div class="card-body">
           <div class="form-group">
-            <label><i class="fa-solid fa-pen-nib"></i> Question Text (LaTeX supported $...$)</label>
-            <textarea class="q-text-input" rows="2" data-qindex="${qIndex}">${escapeHtml(q.questionText)}</textarea>
-            <div class="latex-preview-box math-render" id="math_preview_${qIndex}"></div>
+            <label><i class="fa-solid fa-pen-nib"></i> Question Text</label>
+            <textarea class="q-text-input parsed-qtext-input" rows="2" data-qindex="${qIndex}">${escapeHtml(q.questionText)}</textarea>
+            <div class="latex-preview-box math-render parsed-math-preview" id="parsed_math_${qIndex}"></div>
           </div>
-
+          ${q.hint ? `
           <div class="hint-wrapper">
-            <div class="hint-header">
-              <label><i class="fa-solid fa-lightbulb"></i> Hint / Explanation</label>
-              <div style="display: flex; gap: 0.4rem; align-items: center;">
-                <button class="btn btn-sm btn-outline copy-hint-btn" data-qindex="${qIndex}" title="Copy hint text to clipboard">
-                  <i class="fa-regular fa-copy"></i> Copy Hint
-                </button>
-                <button class="ai-gen-btn generate-single-ai-hint-btn" data-qindex="${qIndex}" title="Generate step-by-step explanation using AI">
-                  <i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Hint
-                </button>
-              </div>
-            </div>
-            <textarea class="q-hint-input" rows="5" data-qindex="${qIndex}">${escapeHtml(q.hint)}</textarea>
-          </div>
-
-          <div class="options-editor">
-            <div class="options-label"><i class="fa-solid fa-list-ul"></i> Options & Correct Answer</div>
-            <div class="options-container">
-              ${optionsHtml}
-            </div>
-            <button class="btn btn-sm btn-outline add-opt-btn" data-qindex="${qIndex}" style="align-self: flex-start; margin-top: 0.4rem;">
-              <i class="fa-solid fa-plus"></i> Add Option
-            </button>
+            <div class="hint-header"><label><i class="fa-solid fa-lightbulb"></i> Hint / Solution</label></div>
+            <textarea class="q-hint-input parsed-hint-input" rows="3" data-qindex="${qIndex}">${escapeHtml(q.hint)}</textarea>
+          </div>` : ''}
+          <div class="options-container" style="margin-top: 0.75rem;">
+            ${optionsHtml}
           </div>
         </div>
       `;
@@ -847,593 +1028,880 @@ Options:
       questionsList.appendChild(card);
     });
 
-    renderMathPreviews();
-    syncJsonCodeDisplay();
-    attachCardEventListeners();
+    renderParsedMathPreviews();
+    attachParsedCardEvents();
   }
 
-  function renderMathInContainer(container, rawText) {
-    if (!container) return;
-    container.innerHTML = rawText || '';
-    if (window.renderMathInElement) {
-      try {
-        renderMathInElement(container, {
-          delimiters: [
-            {left: '$$', right: '$$', display: true},
-            {left: '$', right: '$', display: false}
-          ],
-          throwOnError: false
-        });
-      } catch(e) {}
-    }
-  }
-
-  function renderMathPreviews() {
+  function renderParsedMathPreviews() {
     questionsData.forEach((q, idx) => {
-      const previewEl = document.getElementById(`math_preview_${idx}`);
-      if (previewEl) {
-        renderMathInContainer(previewEl, q.questionText || '<i>Empty question</i>');
-      }
+      const box = document.getElementById(`parsed_math_${idx}`);
+      if (box) renderMathInContainer(box, q.questionText || '');
     });
   }
 
-  function syncJsonCodeDisplay() {
-    jsonCodeDisplay.textContent = JSON.stringify(questionsData, null, 2);
-  }
-
-  function attachCardEventListeners() {
-    document.querySelectorAll('.q-subject-select').forEach(el => {
-      el.addEventListener('change', (e) => {
-        const qIndex = parseInt(e.target.dataset.qindex);
-        const newSubj = e.target.value;
-        questionsData[qIndex].subject = newSubj;
-        const availableTops = getTopicsForSubject(newSubj);
-        questionsData[qIndex].topic = availableTops[0];
-        const subList = getSubtopicsForTopic(newSubj, availableTops[0]);
-        questionsData[qIndex].subtopic = subList[0];
-        renderQuestions();
+  function attachParsedCardEvents() {
+    document.querySelectorAll('.parsed-select-checkbox').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const qIdx = parseInt(e.target.dataset.qindex);
+        questionsData[qIdx].isSelected = e.target.checked;
+        const card = e.target.closest('.question-card');
+        if (card) card.classList.toggle('selected', e.target.checked);
       });
     });
 
-    document.querySelectorAll('.q-text-input').forEach(el => {
-      el.addEventListener('input', (e) => {
-        const qIndex = parseInt(e.target.dataset.qindex);
-        questionsData[qIndex].questionText = e.target.value;
-        renderMathPreviews();
-        syncJsonCodeDisplay();
+    document.querySelectorAll('.parsed-qtext-input').forEach(ta => {
+      ta.addEventListener('input', (e) => {
+        const qIdx = parseInt(e.target.dataset.qindex);
+        questionsData[qIdx].questionText = e.target.value;
+        const box = document.getElementById(`parsed_math_${qIdx}`);
+        if (box) renderMathInContainer(box, e.target.value);
       });
     });
 
-    document.querySelectorAll('.q-hint-input').forEach(el => {
-      el.addEventListener('input', (e) => {
-        const qIndex = parseInt(e.target.dataset.qindex);
-        questionsData[qIndex].hint = e.target.value;
-        syncJsonCodeDisplay();
+    document.querySelectorAll('.parsed-hint-input').forEach(ta => {
+      ta.addEventListener('input', (e) => {
+        const qIdx = parseInt(e.target.dataset.qindex);
+        questionsData[qIdx].hint = e.target.value;
       });
     });
 
-    document.querySelectorAll('.q-topic-select').forEach(el => {
-      el.addEventListener('change', (e) => {
-        const qIndex = parseInt(e.target.dataset.qindex);
-        const newTopic = e.target.value;
-        questionsData[qIndex].topic = newTopic;
-        const subList = getSubtopicsForTopic(questionsData[qIndex].subject, newTopic);
-        questionsData[qIndex].subtopic = subList[0];
-        renderQuestions();
+    document.querySelectorAll('.parsed-opt-text').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const qIdx = parseInt(e.target.dataset.qindex);
+        const optIdx = parseInt(e.target.dataset.optindex);
+        questionsData[qIdx].options[optIdx].text = e.target.value;
       });
     });
 
-    document.querySelectorAll('.q-subtopic-select').forEach(el => {
-      el.addEventListener('change', (e) => {
-        const qIndex = parseInt(e.target.dataset.qindex);
-        questionsData[qIndex].subtopic = e.target.value;
-        syncJsonCodeDisplay();
-      });
-    });
-
-    document.querySelectorAll('.option-input').forEach(el => {
-      el.addEventListener('input', (e) => {
-        const qIndex = parseInt(e.target.dataset.qindex);
-        const optIndex = parseInt(e.target.dataset.optindex);
-        questionsData[qIndex].options[optIndex].text = e.target.value;
-        syncJsonCodeDisplay();
-      });
-    });
-
-    document.querySelectorAll('.radio-custom').forEach(el => {
-      el.addEventListener('change', (e) => {
-        const qIndex = parseInt(e.target.dataset.qindex);
-        const optIndex = parseInt(e.target.dataset.optindex);
-        questionsData[qIndex].options.forEach((opt, idx) => {
-          opt.isCorrect = (idx === optIndex);
-        });
-        renderQuestions();
-      });
-    });
-
-  function copyTextToClipboard(textToCopy) {
-    if (!textToCopy) return Promise.reject(new Error('Nothing to copy'));
-    
-    if (navigator.clipboard && window.isSecureContext) {
-      return navigator.clipboard.writeText(textToCopy);
-    } else {
-      return new Promise((resolve, reject) => {
-        try {
-          const textArea = document.createElement('textarea');
-          textArea.value = textToCopy;
-          textArea.style.position = 'fixed';
-          textArea.style.left = '-999999px';
-          textArea.style.top = '-999999px';
-          document.body.appendChild(textArea);
-          textArea.focus();
-          textArea.select();
-          const successful = document.execCommand('copy');
-          document.body.removeChild(textArea);
-          if (successful) resolve();
-          else reject(new Error('execCommand copy failed'));
-        } catch (err) {
-          reject(err);
-        }
-      });
-    }
-  }
-
-    document.querySelectorAll('.copy-hint-btn').forEach(btn => {
+    document.querySelectorAll('.parsed-del-q-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const btnEl = e.currentTarget;
-        const qIndex = parseInt(btnEl.dataset.qindex);
-        
-        // Read directly from the card DOM textarea for real-time edited content
-        const card = btnEl.closest('.question-card');
-        const hintTextarea = card ? card.querySelector('.q-hint-input') : null;
-        let hintText = hintTextarea ? hintTextarea.value : (questionsData[qIndex] ? questionsData[qIndex].hint : '');
-
-        if (!hintText || !hintText.trim()) {
-          alert('Hint text is empty!');
-          return;
-        }
-
-        copyTextToClipboard(hintText).then(() => {
-          const origHtml = btnEl.innerHTML;
-          btnEl.innerHTML = '<i class="fa-solid fa-check" style="color: #10b981;"></i> Copied!';
-          setTimeout(() => { btnEl.innerHTML = origHtml; }, 2000);
-        }).catch(err => {
-          console.error('Copy error:', err);
-          alert('Failed to copy hint to clipboard.');
-        });
-      });
-    });
-    document.querySelectorAll('.q-label-select').forEach(el => {
-      el.addEventListener('change', (e) => {
-        const qIndex = parseInt(e.target.dataset.qindex);
-        questionsData[qIndex].label = e.target.value;
-        syncJsonCodeDisplay();
-      });
-    });
-
-    document.querySelectorAll('.add-to-qb-btn').forEach(el => {
-      el.addEventListener('click', async (e) => {
-        const qIndex = parseInt(e.currentTarget.dataset.qindex);
-        const qData = questionsData[qIndex];
-        const btn = e.currentTarget;
-        const originalHtml = btn.innerHTML;
-        btn.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i>';
-        btn.disabled = true;
-
-        try {
-          const response = await fetch(`${API_BASE}/api/questions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(qData)
-          });
-          const result = await response.json();
-          if (response.ok) {
-            btn.innerHTML = '<i class="fa-solid fa-check"></i>';
-            btn.classList.remove('btn-success');
-            btn.classList.add('btn-outline');
-          } else {
-            alert('Error adding to DB: ' + (result.detail || 'Unknown error'));
-            btn.innerHTML = originalHtml;
-          }
-        } catch (error) {
-          alert('Network error: ' + error.message);
-          btn.innerHTML = originalHtml;
-        } finally {
-          setTimeout(() => {
-            if (btn.innerHTML !== '<i class="fa-solid fa-check"></i>') {
-                btn.disabled = false;
-            }
-          }, 1000);
-        }
-      });
-    });
-
-    document.querySelectorAll('.generate-single-ai-hint-btn').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const qIndex = parseInt(e.currentTarget.dataset.qindex);
-        await generateSingleAiHint(qIndex, e.currentTarget);
-      });
-    });
-
-    document.querySelectorAll('.delete-q-btn').forEach(el => {
-      el.addEventListener('click', (e) => {
-        const qIndex = parseInt(e.currentTarget.dataset.qindex);
-        questionsData.splice(qIndex, 1);
-        renderQuestions();
-      });
-    });
-
-    document.querySelectorAll('.delete-opt-btn').forEach(el => {
-      el.addEventListener('click', (e) => {
-        const qIndex = parseInt(e.currentTarget.dataset.qindex);
-        const optIndex = parseInt(e.currentTarget.dataset.optindex);
-        questionsData[qIndex].options.splice(optIndex, 1);
-        renderQuestions();
-      });
-    });
-
-    document.querySelectorAll('.add-opt-btn').forEach(el => {
-      el.addEventListener('click', (e) => {
-        const qIndex = parseInt(e.currentTarget.dataset.qindex);
-        questionsData[qIndex].options.push({
-          text: "New Option",
-          isCorrect: false
-        });
-        renderQuestions();
+        const qIdx = parseInt(e.currentTarget.dataset.qindex);
+        questionsData.splice(qIdx, 1);
+        renderParsedQuestions();
       });
     });
   }
 
-  // Generate Single AI Hint helper
-  async function generateSingleAiHint(qIndex, btnElement) {
-    const q = questionsData[qIndex];
-    if (!q) return;
-
-    let llmProvider = 'gemini';
-    const providerRadio = document.querySelector('input[name="global_ai_provider"]:checked');
-    if (providerRadio) {
-      llmProvider = providerRadio.value;
-    }
-
-    const apiKey = localStorage.getItem(llmProvider === 'chatgpt' ? 'chatgpt_api_key' : 'gemini_api_key') || '';
-    
-    const customPrompt = getSubjectPrompt(q.subject || selectedSubject || 'English');
-
-    const origHtml = btnElement ? btnElement.innerHTML : '';
-    if (btnElement) {
-      btnElement.disabled = true;
-      btnElement.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i> Generating...';
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/api/generate-hint`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questionText: q.questionText,
-          options: q.options,
-          apiKey: apiKey,
-          llmProvider: llmProvider,
-          model: llmProvider === 'chatgpt' ? (localStorage.getItem('chatgpt_model') || 'gpt-4o-mini') : 'gemini-2.0-flash',
-          subject: q.subject || selectedSubject || 'English',
-          customPrompt: customPrompt
-        })
-      });
-
-      if (!response.ok) {
-        let errStr = response.statusText;
-        try {
-          const errData = await response.json();
-          if (errData && errData.detail) errStr = errData.detail;
-        } catch(e) {}
-        throw new Error(errStr);
-      }
-
-      const resData = await response.json();
-      q.hint = cleanFormatting(resData.hint);
-      renderQuestions();
-    } catch(err) {
-      alert('AI Generation Failed: ' + err.message);
-      if (btnElement) {
-        btnElement.disabled = false;
-        btnElement.innerHTML = origHtml;
-      }
-    }
+  if (selectAllParsedBtn) {
+    selectAllParsedBtn.addEventListener('click', () => {
+      questionsData.forEach(q => q.isSelected = true);
+      renderParsedQuestions();
+    });
   }
 
-  // Batch Auto-Generate Missing Hints
-  if (autoGenerateAllHintsBtn) {
-    autoGenerateAllHintsBtn.addEventListener('click', async () => {
-      const emptyIndices = [];
-      questionsData.forEach((q, idx) => {
-        if (!q.hint || !q.hint.trim()) emptyIndices.push(idx);
-      });
+  if (deselectAllParsedBtn) {
+    deselectAllParsedBtn.addEventListener('click', () => {
+      questionsData.forEach(q => q.isSelected = false);
+      renderParsedQuestions();
+    });
+  }
 
-      if (emptyIndices.length === 0) {
-        alert('All questions already have hints!');
+  if (applyBulkTopicBtn) {
+    applyBulkTopicBtn.addEventListener('click', () => {
+      const top = bulkTopicInput.value.trim();
+      if (!top) return;
+      questionsData.forEach(q => q.topic = top);
+      renderParsedQuestions();
+    });
+  }
+
+  if (searchInput) searchInput.addEventListener('input', renderParsedQuestions);
+
+  // Guy A Primary Action: Push to Review Queue (Staging DB)
+  if (pushToReviewQueueBtn) {
+    pushToReviewQueueBtn.addEventListener('click', async () => {
+      const selectedQuestions = questionsData.filter(q => q.isSelected !== false);
+      if (selectedQuestions.length === 0) {
+        alert('Please select at least one question to send to the review queue.');
         return;
       }
 
-      if (!confirm(`Generate AI hints for ${emptyIndices.length} questions missing hints?`)) return;
+      const origHtml = pushToReviewQueueBtn.innerHTML;
+      pushToReviewQueueBtn.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i> Sending to Guy B...';
+      pushToReviewQueueBtn.disabled = true;
 
-      const origText = autoGenerateAllHintsBtn.innerHTML;
-      autoGenerateAllHintsBtn.disabled = true;
-
-      for (let i = 0; i < emptyIndices.length; i++) {
-        const idx = emptyIndices[i];
-        autoGenerateAllHintsBtn.innerHTML = `<i class="fa-solid fa-spinner spin-icon"></i> Generating (${i + 1}/${emptyIndices.length})...`;
-        await generateSingleAiHint(idx, null);
+      try {
+        const res = await fetch(`${API_BASE}/api/unreviewed-questions/bulk`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ questions: selectedQuestions })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          alert(`🎉 Success! ${result.count} questions have been transferred to Guy B's Review Queue in Questify DB.\nGuy A's task is complete!`);
+          questionsData = questionsData.filter(q => !q.isSelected);
+          renderParsedQuestions();
+          fetchPendingReviewCount();
+        } else {
+          alert('Error transferring questions: ' + (result.detail || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      } finally {
+        pushToReviewQueueBtn.innerHTML = origHtml;
+        pushToReviewQueueBtn.disabled = false;
       }
-
-      autoGenerateAllHintsBtn.disabled = false;
-      autoGenerateAllHintsBtn.innerHTML = origText;
-      alert(`Successfully generated AI hints for ${emptyIndices.length} questions!`);
     });
   }
 
-  // Add New Question
-  addQuestionBtn.addEventListener('click', () => {
-    questionsData.push({
-      questionText: "New Question Text $x = 0$",
-      hint: "Hint for new question",
-      subject: selectedSubject || "English",
-      topic: "Vocabulary",
-      subtopic: "Definition",
-      options: [
-        { text: "$Option 1$", isCorrect: true },
-        { text: "$Option 2$", isCorrect: false },
-        { text: "$Option 3$", isCorrect: false },
-        { text: "$Option 4$", isCorrect: false }
-      ]
-    });
-    renderQuestions();
-    const lastCard = questionsList.lastElementChild;
-    if (lastCard) lastCard.scrollIntoView({ behavior: 'smooth' });
-  });
+  // =========================================================================
+  // GUY B: REVIEWER PORTAL (ONE-BY-ONE QUEUE)
+  // =========================================================================
+  let reviewQueueData = [];
+  let currentReviewQuestion = null;
+  let currentReviewIndex = 0;
+  let totalReviewQueueCount = 0;
+  let reviewSubMode = 'focus'; // 'focus' or 'list'
 
-  // Bulk Apply Topic
-  applyBulkTopicBtn.addEventListener('click', () => {
-    const newTopic = bulkTopicInput.value.trim();
-    if (!newTopic) return;
-    questionsData.forEach(q => q.topic = newTopic);
-    renderQuestions();
-  });
+  const reviewerQueueCountBadge = document.getElementById('reviewerQueueCountBadge');
+  const reviewSubjectFilter = document.getElementById('reviewSubjectFilter');
+  const reviewFocusModeBtn = document.getElementById('reviewFocusModeBtn');
+  const reviewQueueListModeBtn = document.getElementById('reviewQueueListModeBtn');
+  const refreshReviewQueueBtn = document.getElementById('refreshReviewQueueBtn');
 
-  // Search input filter
-  searchInput.addEventListener('input', () => {
-    renderQuestions();
-  });
+  const reviewFocusView = document.getElementById('reviewFocusView');
+  const reviewQueueListView = document.getElementById('reviewQueueListView');
+  const focusReviewCard = document.getElementById('focusReviewCard');
+  const reviewerEmptyQueueState = document.getElementById('reviewerEmptyQueueState');
 
-  // View Switcher (Cards vs QB vs JSON)
-  viewCardsBtn.addEventListener('click', () => {
-    viewCardsBtn.classList.add('active');
-    viewQbBtn.classList.remove('active');
-    viewJsonBtn.classList.remove('active');
-    cardsView.classList.remove('hidden');
-    qbView.classList.add('hidden');
-    jsonView.classList.add('hidden');
-  });
+  const stepperQuestionIndex = document.getElementById('stepperQuestionIndex');
+  const focusQuestionMetaBadge = document.getElementById('focusQuestionMetaBadge');
+  const queueProgressBar = document.getElementById('queueProgressBar');
+  const prevQueueItemBtn = document.getElementById('prevQueueItemBtn');
+  const skipQueueItemBtn = document.getElementById('skipQueueItemBtn');
 
-  viewQbBtn.addEventListener('click', () => {
-    viewQbBtn.classList.add('active');
-    viewCardsBtn.classList.remove('active');
-    viewJsonBtn.classList.remove('active');
-    qbView.classList.remove('hidden');
-    cardsView.classList.add('hidden');
-    jsonView.classList.add('hidden');
-    fetchQuestionBank(); // load QB data
-  });
+  const focusQuestionTabBtn = document.getElementById('focusQuestionTabBtn');
+  const focusJsonTabBtn = document.getElementById('focusJsonTabBtn');
+  const focusQuestionPane = document.getElementById('focusQuestionPane');
+  const focusJsonPane = document.getElementById('focusJsonPane');
+  const focusJsonEditor = document.getElementById('focusJsonEditor');
+  const focusJsonActions = document.getElementById('focusJsonActions');
+  const focusCopyJsonBtn = document.getElementById('focusCopyJsonBtn');
+  const focusPrettifyJsonBtn = document.getElementById('focusPrettifyJsonBtn');
 
-  viewJsonBtn.addEventListener('click', () => {
-    viewJsonBtn.classList.add('active');
-    viewCardsBtn.classList.remove('active');
-    viewQbBtn.classList.remove('active');
-    jsonView.classList.remove('hidden');
-    cardsView.classList.add('hidden');
-    qbView.classList.add('hidden');
-    syncJsonCodeDisplay();
-  });
+  const focusSubjectSelect = document.getElementById('focusSubjectSelect');
+  const focusTopicSelect = document.getElementById('focusTopicSelect');
+  const focusSubtopicSelect = document.getElementById('focusSubtopicSelect');
+  const focusLabelSelect = document.getElementById('focusLabelSelect');
+  const focusQTextInput = document.getElementById('focusQTextInput');
+  const focusOptionsContainer = document.getElementById('focusOptionsContainer');
+  const focusAddOptBtn = document.getElementById('focusAddOptBtn');
+  const focusHintInput = document.getElementById('focusHintInput');
+  const focusGenerateAiHintBtn = document.getElementById('focusGenerateAiHintBtn');
+  const focusRejectQuestionBtn = document.getElementById('focusRejectQuestionBtn');
+  const focusSaveDraftBtn = document.getElementById('focusSaveDraftBtn');
+  const focusApproveQuestionBtn = document.getElementById('focusApproveQuestionBtn');
 
-  // Copy JSON to Clipboard
-  copyJsonBtn.addEventListener('click', () => {
-    const jsonStr = JSON.stringify(questionsData, null, 2);
-    copyTextToClipboard(jsonStr).then(() => {
-      const origText = copyJsonBtn.innerHTML;
-      copyJsonBtn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
-      setTimeout(() => copyJsonBtn.innerHTML = origText, 2000);
-    }).catch(err => {
-      alert('Failed to copy JSON: ' + err.message);
-    });
-  });
+  const queueListContainer = document.getElementById('queueListContainer');
+  const queueListSearchInput = document.getElementById('queueListSearchInput');
+  const emptyQueueToBankBtn = document.getElementById('emptyQueueToBankBtn');
 
-  // Download JSON File
-  downloadJsonBtn.addEventListener('click', async () => {
+  function normalizeParagraphText(text) {
+    if (!text || typeof text !== 'string') return '';
+    let t = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const paragraphs = t.split(/\n\s*\n/);
+    const cleanedParas = paragraphs.map(p => {
+      const lines = p.split('\n').map(l => l.trim()).filter(Boolean);
+      if (!lines.length) return '';
+      let result = lines[0];
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (/^(\d+[\.\)]|[A-Za-z][\.\)]|[-*•])\s+/.test(line)) {
+          result += '\n' + line;
+        } else {
+          result += ' ' + line;
+        }
+      }
+      return result;
+    }).filter(Boolean);
+    return cleanedParas.join('\n\n');
+  }
+
+  function syncQuestionFormToJson() {
+    if (!focusJsonEditor) return;
+    const currentOpts = (currentReviewQuestion && currentReviewQuestion.options) ? currentReviewQuestion.options : [];
+    const qObj = {
+      subject: focusSubjectSelect ? focusSubjectSelect.value : (currentReviewQuestion ? currentReviewQuestion.subject : 'English'),
+      topic: focusTopicSelect ? focusTopicSelect.value : (currentReviewQuestion ? currentReviewQuestion.topic : ''),
+      subtopic: focusSubtopicSelect ? focusSubtopicSelect.value : (currentReviewQuestion ? currentReviewQuestion.subtopic : ''),
+      label: focusLabelSelect ? focusLabelSelect.value : (currentReviewQuestion ? currentReviewQuestion.label : 'medium'),
+      questionText: focusQTextInput ? focusQTextInput.value : (currentReviewQuestion ? currentReviewQuestion.questionText : ''),
+      options: currentOpts,
+      hint: focusHintInput ? focusHintInput.value : (currentReviewQuestion ? currentReviewQuestion.hint : '')
+    };
+    focusJsonEditor.value = JSON.stringify(qObj, null, 2);
+  }
+
+  function syncJsonToQuestionForm() {
+    if (!focusJsonEditor) return true;
+    const raw = focusJsonEditor.value.trim();
+    if (!raw) return true;
     try {
-      const response = await fetch(`${API_BASE}/api/download-json`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(questionsData)
+      const parsed = JSON.parse(raw);
+      if (parsed.subject && focusSubjectSelect) {
+        focusSubjectSelect.value = parsed.subject;
+      }
+      updateFocusTopics(
+        parsed.subject || (focusSubjectSelect ? focusSubjectSelect.value : 'English'),
+        parsed.topic,
+        parsed.subtopic
+      );
+      if (parsed.label && focusLabelSelect) {
+        focusLabelSelect.value = parsed.label;
+      }
+      if (parsed.questionText !== undefined && focusQTextInput) {
+        focusQTextInput.value = normalizeParagraphText(parsed.questionText);
+      }
+      if (parsed.hint !== undefined && focusHintInput) {
+        focusHintInput.value = normalizeParagraphText(parsed.hint);
+      }
+      if (Array.isArray(parsed.options)) {
+        if (!currentReviewQuestion) currentReviewQuestion = {};
+        currentReviewQuestion.options = parsed.options;
+        renderFocusOptions(currentReviewQuestion.options);
+      }
+      return true;
+    } catch (e) {
+      alert('Invalid JSON syntax: ' + e.message);
+      return false;
+    }
+  }
+
+  // Question <-> JSON Slider Switch
+  function setFocusReviewTab(tab) {
+    if (tab === 'json') {
+      syncQuestionFormToJson();
+      if (focusQuestionTabBtn) focusQuestionTabBtn.classList.remove('active');
+      if (focusJsonTabBtn) focusJsonTabBtn.classList.add('active');
+      if (focusQuestionPane) {
+        focusQuestionPane.classList.add('hidden');
+        focusQuestionPane.style.setProperty('display', 'none', 'important');
+      }
+      if (focusJsonPane) {
+        focusJsonPane.classList.remove('hidden');
+        focusJsonPane.style.setProperty('display', 'flex', 'important');
+      }
+      if (focusJsonActions) {
+        focusJsonActions.classList.remove('hidden');
+        focusJsonActions.style.setProperty('display', 'flex', 'important');
+      }
+    } else {
+      if (focusJsonPane && !focusJsonPane.classList.contains('hidden') && focusJsonPane.style.display !== 'none') {
+        if (!syncJsonToQuestionForm()) return;
+      }
+      if (focusJsonTabBtn) focusJsonTabBtn.classList.remove('active');
+      if (focusQuestionTabBtn) focusQuestionTabBtn.classList.add('active');
+      if (focusJsonPane) {
+        focusJsonPane.classList.add('hidden');
+        focusJsonPane.style.setProperty('display', 'none', 'important');
+      }
+      if (focusJsonActions) {
+        focusJsonActions.classList.add('hidden');
+        focusJsonActions.style.setProperty('display', 'none', 'important');
+      }
+      if (focusQuestionPane) {
+        focusQuestionPane.classList.remove('hidden');
+        focusQuestionPane.style.setProperty('display', 'flex', 'important');
+      }
+    }
+  }
+
+  if (focusQuestionTabBtn) {
+    focusQuestionTabBtn.addEventListener('click', () => setFocusReviewTab('question'));
+  }
+  if (focusJsonTabBtn) {
+    focusJsonTabBtn.addEventListener('click', () => setFocusReviewTab('json'));
+  }
+
+  if (focusCopyJsonBtn) {
+    focusCopyJsonBtn.addEventListener('click', () => {
+      if (!focusJsonEditor) return;
+      navigator.clipboard.writeText(focusJsonEditor.value).then(() => {
+        const orig = focusCopyJsonBtn.innerHTML;
+        focusCopyJsonBtn.innerHTML = '<i class="fa-solid fa-check" style="color: #10b981;"></i> Copied!';
+        setTimeout(() => { focusCopyJsonBtn.innerHTML = orig; }, 1800);
+      }).catch(() => {
+        alert('Could not copy JSON to clipboard.');
       });
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'questions.json';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+    });
+  }
+
+  if (focusPrettifyJsonBtn) {
+    focusPrettifyJsonBtn.addEventListener('click', () => {
+      if (!focusJsonEditor) return;
+      try {
+        const parsed = JSON.parse(focusJsonEditor.value);
+        focusJsonEditor.value = JSON.stringify(parsed, null, 2);
+      } catch(e) {
+        alert('Cannot format invalid JSON: ' + e.message);
+      }
+    });
+  }
+
+  async function fetchPendingReviewCount() {
+    try {
+      const res = await fetch(`${API_BASE}/api/unreviewed-questions/stats`);
+      if (res.ok) {
+        const stats = await res.json();
+        const cnt = stats.unreviewedTotal || 0;
+        if (navPendingReviewBadge) {
+          navPendingReviewBadge.textContent = cnt;
+          navPendingReviewBadge.style.display = cnt > 0 ? 'inline-block' : 'none';
+        }
+        if (reviewerQueueCountBadge) {
+          reviewerQueueCountBadge.textContent = `${cnt} Pending Review`;
+        }
+        if (gatewayPendingBadge) {
+          gatewayPendingBadge.textContent = `${cnt} in Queue`;
+        }
+      }
+    } catch(e) {}
+  }
+
+  function initReviewerPortal() {
+    currentReviewIndex = 0;
+    fetchFocusQuestion(currentReviewIndex);
+    fetchPendingReviewCount();
+  }
+
+  async function fetchFocusQuestion(index = 0) {
+    const subj = reviewSubjectFilter ? reviewSubjectFilter.value : 'all';
+    try {
+      const res = await fetch(`${API_BASE}/api/review-queue/next?index=${index}&subject=${subj}`);
+      if (res.ok) {
+        const data = await res.json();
+        totalReviewQueueCount = data.total || 0;
+        currentReviewIndex = index;
+
+        if (reviewerQueueCountBadge) {
+          reviewerQueueCountBadge.textContent = `${totalReviewQueueCount} Pending Review`;
+        }
+        if (navPendingReviewBadge) {
+          navPendingReviewBadge.textContent = totalReviewQueueCount;
+        }
+
+        if (data.status === 'empty' || !data.question) {
+          if (focusReviewCard) focusReviewCard.classList.add('hidden');
+          if (reviewerEmptyQueueState) reviewerEmptyQueueState.classList.remove('hidden');
+          if (stepperQuestionIndex) stepperQuestionIndex.textContent = 'Queue Empty';
+          if (queueProgressBar) queueProgressBar.style.width = '100%';
+          return;
+        }
+
+        if (focusReviewCard) focusReviewCard.classList.remove('hidden');
+        if (reviewerEmptyQueueState) reviewerEmptyQueueState.classList.add('hidden');
+
+        currentReviewQuestion = data.question;
+        renderFocusQuestion(currentReviewQuestion, currentReviewIndex, totalReviewQueueCount);
+      }
     } catch(err) {
-      alert('Error downloading JSON: ' + err.message);
+      alert('Error fetching question from queue: ' + err.message);
     }
-  });
+  }
 
-  // Dark / Light Theme Toggle
-  const themeToggleBtn = document.getElementById('themeToggleBtn');
-  if (themeToggleBtn) {
-    themeToggleBtn.addEventListener('click', () => {
-      document.body.classList.toggle('light-theme');
-      const isLight = document.body.classList.contains('light-theme');
-      themeToggleBtn.innerHTML = isLight ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
+  function renderFocusQuestion(q, idx, total) {
+    if (!q) return;
+
+    if (stepperQuestionIndex) stepperQuestionIndex.textContent = `Question ${idx + 1} of ${total}`;
+    if (focusQuestionMetaBadge) focusQuestionMetaBadge.textContent = `${q.subject || 'English'} • ${q.topic || 'General'}`;
+    if (queueProgressBar) {
+      const pct = total > 0 ? Math.round(((idx + 1) / total) * 100) : 0;
+      queueProgressBar.style.width = `${pct}%`;
+    }
+
+    if (prevQueueItemBtn) prevQueueItemBtn.disabled = (idx === 0);
+    if (skipQueueItemBtn) skipQueueItemBtn.disabled = (idx >= total - 1);
+
+    if (focusSubjectSelect) focusSubjectSelect.value = q.subject || 'English';
+    updateFocusTopics(q.subject || 'English', q.topic, q.subtopic);
+    if (focusLabelSelect) focusLabelSelect.value = q.label || 'medium';
+
+    const cleanQ = normalizeParagraphText(q.questionText || '');
+    const cleanH = normalizeParagraphText(q.hint || '');
+    q.questionText = cleanQ;
+    q.hint = cleanH;
+
+    if (focusQTextInput) focusQTextInput.value = cleanQ;
+    if (focusHintInput) focusHintInput.value = cleanH;
+
+    renderFocusOptions(q.options || []);
+
+    if (focusJsonPane && !focusJsonPane.classList.contains('hidden') && focusJsonPane.style.display !== 'none') {
+      syncQuestionFormToJson();
+    }
+  }
+
+  function updateFocusTopics(subject, currentTopic, currentSubtopic) {
+    const topics = getTopicsForSubject(subject);
+    focusTopicSelect.innerHTML = '';
+    topics.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      if (t === currentTopic) opt.selected = true;
+      focusTopicSelect.appendChild(opt);
+    });
+
+    const activeTop = focusTopicSelect.value;
+    const subtopics = getSubtopicsForTopic(subject, activeTop);
+    focusSubtopicSelect.innerHTML = '';
+    subtopics.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = s;
+      if (s === currentSubtopic) opt.selected = true;
+      focusSubtopicSelect.appendChild(opt);
     });
   }
 
-  function cleanFormatting(str) {
-    if (!str) return '';
-    let cleaned = str.replace(/#+\s*/g, '');
-    cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, '$1');
-    cleaned = cleaned.replace(/__(.*?)__/g, '$1');
-    cleaned = cleaned.replace(/\*\*/g, '').replace(/__/g, '');
-    return cleaned.trim();
+  if (focusSubjectSelect) {
+    focusSubjectSelect.addEventListener('change', () => {
+      updateFocusTopics(focusSubjectSelect.value);
+      if (focusJsonPane && !focusJsonPane.classList.contains('hidden')) {
+        syncQuestionFormToJson();
+      }
+    });
   }
-
-  function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  }
-
-  addAllToQbBtn.addEventListener('click', async () => {
-    if (questionsData.length === 0) {
-      alert("No questions to add.");
-      return;
-    }
-    const origHtml = addAllToQbBtn.innerHTML;
-    addAllToQbBtn.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i> Pushing...';
-    addAllToQbBtn.disabled = true;
-    try {
-      const response = await fetch(`${API_BASE}/api/questions/bulk`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questions: questionsData })
+  if (focusTopicSelect) {
+    focusTopicSelect.addEventListener('change', () => {
+      const subs = getSubtopicsForTopic(focusSubjectSelect.value, focusTopicSelect.value);
+      focusSubtopicSelect.innerHTML = '';
+      subs.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s;
+        focusSubtopicSelect.appendChild(opt);
       });
-      const result = await response.json();
-      if (response.ok) {
-        alert(result.message);
-      } else {
-        alert('Error: ' + result.detail);
+      if (focusJsonPane && !focusJsonPane.classList.contains('hidden')) {
+        syncQuestionFormToJson();
       }
-    } catch (err) {
-      alert('Network error: ' + err.message);
-    } finally {
-      addAllToQbBtn.innerHTML = origHtml;
-      addAllToQbBtn.disabled = false;
-    }
-  });
+    });
+  }
+  if (focusSubtopicSelect) {
+    focusSubtopicSelect.addEventListener('change', () => {
+      if (focusJsonPane && !focusJsonPane.classList.contains('hidden')) {
+        syncQuestionFormToJson();
+      }
+    });
+  }
+  if (focusLabelSelect) {
+    focusLabelSelect.addEventListener('change', () => {
+      if (focusJsonPane && !focusJsonPane.classList.contains('hidden')) {
+        syncQuestionFormToJson();
+      }
+    });
+  }
 
-  // =========================================================================
-  // Primary Navigation Mode Switcher (4 Options)
-  // =========================================================================
-  const modeExtractBtn = document.getElementById('modeExtractBtn');
-  const modeQbBtn = document.getElementById('modeQbBtn');
-  const modeAddSingleBtn = document.getElementById('modeAddSingleBtn');
-  const modeMockBtn = document.getElementById('modeMockBtn');
+  function renderFocusOptions(options) {
+    if (!focusOptionsContainer) return;
+    focusOptionsContainer.innerHTML = '';
 
-  const uploadSection = document.getElementById('uploadSection');
-  const qbStandaloneSection = document.getElementById('qbStandaloneSection');
-  const singleQSection = document.getElementById('singleQSection');
-  const mockGeneratorSection = document.getElementById('mockGeneratorSection');
+    options.forEach((opt, oIdx) => {
+      const row = document.createElement('div');
+      row.className = `option-row ${opt.isCorrect ? 'correct' : ''}`;
+      row.innerHTML = `
+        <input type="radio" name="focus_correct_opt" class="radio-custom" ${opt.isCorrect ? 'checked' : ''} data-oidx="${oIdx}">
+        <input type="text" class="option-input focus-opt-text" value="${escapeHtml(opt.text)}" placeholder="Option ${chr(65 + oIdx)}..." data-oidx="${oIdx}">
+        ${opt.isCorrect ? '<span class="correct-badge"><i class="fa-solid fa-check"></i> Correct</span>' : ''}
+        ${options.length > 2 ? `<button type="button" class="btn btn-icon text-danger focus-del-opt-btn" data-oidx="${oIdx}"><i class="fa-solid fa-xmark"></i></button>` : ''}
+      `;
+      focusOptionsContainer.appendChild(row);
+    });
 
-  function switchMainMode(activeMode) {
-    [modeExtractBtn, modeQbBtn, modeAddSingleBtn, modeMockBtn].forEach(btn => btn && btn.classList.remove('active'));
+    document.querySelectorAll('input[name="focus_correct_opt"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const targetOIdx = parseInt(e.target.dataset.oidx);
+        currentReviewQuestion.options.forEach((o, i) => o.isCorrect = (i === targetOIdx));
+        renderFocusOptions(currentReviewQuestion.options);
+        if (focusJsonPane && !focusJsonPane.classList.contains('hidden')) {
+          syncQuestionFormToJson();
+        }
+      });
+    });
+
+    document.querySelectorAll('.focus-opt-text').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const targetOIdx = parseInt(e.target.dataset.oidx);
+        currentReviewQuestion.options[targetOIdx].text = e.target.value;
+        if (focusJsonPane && !focusJsonPane.classList.contains('hidden')) {
+          syncQuestionFormToJson();
+        }
+      });
+    });
+
+    document.querySelectorAll('.focus-del-opt-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const targetOIdx = parseInt(e.currentTarget.dataset.oidx);
+        currentReviewQuestion.options.splice(targetOIdx, 1);
+        if (!currentReviewQuestion.options.some(o => o.isCorrect) && currentReviewQuestion.options.length > 0) {
+          currentReviewQuestion.options[0].isCorrect = true;
+        }
+        renderFocusOptions(currentReviewQuestion.options);
+        if (focusJsonPane && !focusJsonPane.classList.contains('hidden')) {
+          syncQuestionFormToJson();
+        }
+      });
+    });
+  }
+
+  if (focusAddOptBtn) {
+    focusAddOptBtn.addEventListener('click', () => {
+      if (!currentReviewQuestion) return;
+      if (!currentReviewQuestion.options) currentReviewQuestion.options = [];
+      currentReviewQuestion.options.push({ text: '', isCorrect: false });
+      renderFocusOptions(currentReviewQuestion.options);
+      if (focusJsonPane && !focusJsonPane.classList.contains('hidden')) {
+        syncQuestionFormToJson();
+      }
+    });
+  }
+
+  // Generate / Refine AI Hint for Focus Question
+  if (focusGenerateAiHintBtn) {
+    focusGenerateAiHintBtn.addEventListener('click', async () => {
+      if (focusJsonPane && !focusJsonPane.classList.contains('hidden')) {
+        if (!syncJsonToQuestionForm()) return;
+      }
+
+      const qText = focusQTextInput.value.trim();
+      if (!qText) { alert('Question text is empty.'); return; }
+
+      const geminiApiKey = localStorage.getItem('gemini_api_key') || '';
+      const subj = focusSubjectSelect.value;
+      const customPrompt = getSubjectPrompt(subj);
+
+      const origHtml = focusGenerateAiHintBtn.innerHTML;
+      focusGenerateAiHintBtn.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i> Generating Solution...';
+      focusGenerateAiHintBtn.disabled = true;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/generate-hint`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            questionText: qText,
+            options: currentReviewQuestion.options || [],
+            apiKey: geminiApiKey,
+            llmProvider: 'gemini',
+            model: 'gemini-2.0-flash',
+            subject: subj,
+            customPrompt: customPrompt
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || 'AI generation failed');
+        }
+
+        const data = await res.json();
+        focusHintInput.value = data.hint || '';
+        if (currentReviewQuestion) currentReviewQuestion.hint = data.hint || '';
+        if (focusJsonPane && !focusJsonPane.classList.contains('hidden')) {
+          syncQuestionFormToJson();
+        }
+      } catch (err) {
+        alert('AI Hint generation error: ' + err.message);
+      } finally {
+        focusGenerateAiHintBtn.innerHTML = origHtml;
+        focusGenerateAiHintBtn.disabled = false;
+      }
+    });
+  }
+
+  // Next / Previous Stepper
+  if (prevQueueItemBtn) {
+    prevQueueItemBtn.addEventListener('click', () => {
+      if (currentReviewIndex > 0) {
+        fetchFocusQuestion(currentReviewIndex - 1);
+      }
+    });
+  }
+  if (skipQueueItemBtn) {
+    skipQueueItemBtn.addEventListener('click', () => {
+      fetchFocusQuestion(currentReviewIndex + 1);
+    });
+  }
+
+  // Save Draft (Updates question in unreviewed_questions)
+  if (focusSaveDraftBtn) {
+    focusSaveDraftBtn.addEventListener('click', async () => {
+      if (!currentReviewQuestion || !currentReviewQuestion.id) return;
+      
+      if (focusJsonPane && !focusJsonPane.classList.contains('hidden')) {
+        if (!syncJsonToQuestionForm()) return;
+      }
+
+      const payload = {
+        subject: focusSubjectSelect.value,
+        topic: focusTopicSelect.value,
+        subtopic: focusSubtopicSelect.value,
+        label: focusLabelSelect.value,
+        questionText: focusQTextInput.value.trim(),
+        hint: focusHintInput.value.trim(),
+        options: currentReviewQuestion.options
+      };
+
+      try {
+        const res = await fetch(`${API_BASE}/api/review-queue/${currentReviewQuestion.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          alert('Draft updated in staging queue.');
+        } else {
+          alert('Error saving draft');
+        }
+      } catch(err) {
+        alert('Network error: ' + err.message);
+      }
+    });
+  }
+
+  // Reject / Delete Question from Staging Queue
+  if (focusRejectQuestionBtn) {
+    focusRejectQuestionBtn.addEventListener('click', async () => {
+      if (!currentReviewQuestion || !currentReviewQuestion.id) return;
+      if (!confirm('Are you sure you want to reject and permanently delete this question from the review queue?')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/review-queue/${currentReviewQuestion.id}`, {
+          method: 'DELETE'
+        });
+        if (res.ok) {
+          fetchFocusQuestion(currentReviewIndex);
+          fetchPendingReviewCount();
+        } else {
+          alert('Error deleting question');
+        }
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      }
+    });
+  }
+
+  // Guy B Core Action: Grant & Approve (Pushes to reviewed_questions & removes from queue)
+  if (focusApproveQuestionBtn) {
+    focusApproveQuestionBtn.addEventListener('click', async () => {
+      if (!currentReviewQuestion || !currentReviewQuestion.id) return;
+
+      if (focusJsonPane && !focusJsonPane.classList.contains('hidden')) {
+        if (!syncJsonToQuestionForm()) return;
+      }
+
+      const qText = focusQTextInput.value.trim();
+      if (!qText) { alert('Question text cannot be empty.'); return; }
+
+      const payload = {
+        subject: focusSubjectSelect.value,
+        topic: focusTopicSelect.value,
+        subtopic: focusSubtopicSelect.value,
+        label: focusLabelSelect.value,
+        questionText: qText,
+        hint: focusHintInput.value.trim(),
+        options: currentReviewQuestion.options
+      };
+
+      const origHtml = focusApproveQuestionBtn.innerHTML;
+      focusApproveQuestionBtn.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i> Granting...';
+      focusApproveQuestionBtn.disabled = true;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/review-queue/${currentReviewQuestion.id}/approve`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          // Success: load the next available question in queue!
+          fetchPendingReviewCount();
+          fetchFocusQuestion(currentReviewIndex);
+        } else {
+          const errData = await res.json();
+          alert('Approval failed: ' + (errData.detail || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Network error: ' + err.message);
+      } finally {
+        focusApproveQuestionBtn.innerHTML = origHtml;
+        focusApproveQuestionBtn.disabled = false;
+      }
+    });
+  }
+
+  const queueNavPrevNextBtns = document.getElementById('queueNavPrevNextBtns');
+
+  // Reviewer Sub-mode Toggle (Focus vs Queue List)
+  if (reviewFocusModeBtn && reviewQueueListModeBtn) {
+    reviewFocusModeBtn.addEventListener('click', () => {
+      reviewFocusModeBtn.classList.add('active');
+      reviewQueueListModeBtn.classList.remove('active');
+      if (reviewFocusView) reviewFocusView.classList.remove('hidden');
+      if (reviewQueueListView) reviewQueueListView.classList.add('hidden');
+      if (queueNavPrevNextBtns) queueNavPrevNextBtns.style.display = 'flex';
+      fetchFocusQuestion(currentReviewIndex);
+    });
+
+    reviewQueueListModeBtn.addEventListener('click', () => {
+      reviewQueueListModeBtn.classList.add('active');
+      reviewFocusModeBtn.classList.remove('active');
+      if (reviewQueueListView) reviewQueueListView.classList.remove('hidden');
+      if (reviewFocusView) reviewFocusView.classList.add('hidden');
+      if (queueNavPrevNextBtns) queueNavPrevNextBtns.style.display = 'none';
+      if (stepperQuestionIndex) stepperQuestionIndex.textContent = 'Queue List Overview';
+      fetchQueueList();
+    });
+  }
+
+  if (refreshReviewQueueBtn) {
+    refreshReviewQueueBtn.addEventListener('click', () => {
+      fetchPendingReviewCount();
+      if (reviewQueueListModeBtn.classList.contains('active')) {
+        fetchQueueList();
+      } else {
+        fetchFocusQuestion(currentReviewIndex);
+      }
+    });
+  }
+
+  if (reviewSubjectFilter) {
+    reviewSubjectFilter.addEventListener('change', () => {
+      if (reviewQueueListModeBtn.classList.contains('active')) {
+        fetchQueueList();
+      } else {
+        fetchFocusQuestion(0);
+      }
+    });
+  }
+
+  async function fetchQueueList() {
+    if (!queueListContainer) return;
+    queueListContainer.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner spin-icon"></i> Loading pending questions...</div>';
     
-    uploadSection.classList.add('hidden');
-    if (workspaceSection) workspaceSection.classList.add('hidden');
-    qbStandaloneSection.classList.add('hidden');
-    singleQSection.classList.add('hidden');
-    if (mockGeneratorSection) mockGeneratorSection.classList.add('hidden');
-
-    if (activeMode === 'extract') {
-      modeExtractBtn.classList.add('active');
-      uploadSection.classList.remove('hidden');
-      if (questionsData && questionsData.length > 0) {
-        workspaceSection.classList.remove('hidden');
-      }
-    } else if (activeMode === 'qb') {
-      modeQbBtn.classList.add('active');
-      qbStandaloneSection.classList.remove('hidden');
-      fetchStandaloneQb();
-    } else if (activeMode === 'single') {
-      modeAddSingleBtn.classList.add('active');
-      singleQSection.classList.remove('hidden');
-      initSingleQForm();
-    } else if (activeMode === 'mock') {
-      modeMockBtn.classList.add('active');
-      mockGeneratorSection.classList.remove('hidden');
-      initMockGeneratorForm();
-    }
-  }
-
-  if (modeExtractBtn) modeExtractBtn.addEventListener('click', () => switchMainMode('extract'));
-  if (modeQbBtn) modeQbBtn.addEventListener('click', () => switchMainMode('qb'));
-  if (modeAddSingleBtn) modeAddSingleBtn.addEventListener('click', () => switchMainMode('single'));
-  if (modeMockBtn) modeMockBtn.addEventListener('click', () => switchMainMode('mock'));
-
-
-  // =========================================================================
-  // Standalone Question Bank Logic (Option 2) - Collapsible Cards & USED Stamp
-  // =========================================================================
-  let qbStandaloneData = [];
-  const qbStandaloneList = document.getElementById('qbStandaloneList');
-  const qbTotalBadge = document.getElementById('qbTotalBadge');
-  const qbSearchInput = document.getElementById('qbSearchInput');
-  const qbSubjectFilter = document.getElementById('qbSubjectFilter');
-  const qbLabelFilter = document.getElementById('qbLabelFilter');
-  const refreshQbBtn = document.getElementById('refreshQbBtn');
-
-  async function fetchStandaloneQb() {
-    qbStandaloneList.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner spin-icon"></i> Loading Question Bank...</div>';
+    const subj = reviewSubjectFilter ? reviewSubjectFilter.value : 'all';
     try {
-      const response = await fetch(`${API_BASE}/api/questions`);
-      const result = await response.json();
-      if (response.ok) {
-        qbStandaloneData = result.questions || [];
-        renderStandaloneQb();
-      } else {
-        qbStandaloneList.innerHTML = `<div class="empty-state text-danger">Error: ${result.detail}</div>`;
+      const res = await fetch(`${API_BASE}/api/unreviewed-questions?subject=${subj}`);
+      if (res.ok) {
+        const data = await res.json();
+        renderQueueList(data.questions || []);
       }
-    } catch (err) {
-      qbStandaloneList.innerHTML = `<div class="empty-state text-danger">Network Error: ${err.message}</div>`;
+    } catch(err) {
+      queueListContainer.innerHTML = `<div class="empty-state text-danger">Error: ${err.message}</div>`;
     }
   }
 
-  if (refreshQbBtn) refreshQbBtn.addEventListener('click', fetchStandaloneQb);
-  if (qbSearchInput) qbSearchInput.addEventListener('input', renderStandaloneQb);
-  if (qbSubjectFilter) qbSubjectFilter.addEventListener('change', renderStandaloneQb);
-  if (qbLabelFilter) qbLabelFilter.addEventListener('change', renderStandaloneQb);
-
-  function renderStandaloneQb() {
-    if (!qbStandaloneData || qbStandaloneData.length === 0) {
-      qbStandaloneList.innerHTML = '<div class="empty-state">Question bank is empty.</div>';
-      qbTotalBadge.textContent = '0 Questions';
+  function renderQueueList(questions) {
+    if (!queueListContainer) return;
+    if (questions.length === 0) {
+      queueListContainer.innerHTML = '<div class="empty-state">No pending questions in queue.</div>';
       return;
     }
 
-    const query = (qbSearchInput ? qbSearchInput.value : '').toLowerCase().trim();
-    const subjectVal = qbSubjectFilter ? qbSubjectFilter.value : 'all';
-    const labelVal = qbLabelFilter ? qbLabelFilter.value : 'all';
+    const query = (queueListSearchInput ? queueListSearchInput.value : '').toLowerCase().trim();
+    const filtered = questions.filter(q => {
+      if (!query) return true;
+      return (q.questionText || '').toLowerCase().includes(query) ||
+             (q.topic || '').toLowerCase().includes(query);
+    });
 
-    const filtered = qbStandaloneData.filter(q => {
-      if (subjectVal !== 'all' && (q.subject || '').toLowerCase() !== subjectVal.toLowerCase()) return false;
+    queueListContainer.innerHTML = '';
+    filtered.forEach((q, idx) => {
+      const card = document.createElement('div');
+      card.className = 'question-card';
+      card.innerHTML = `
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="question-index"><i class="fa-solid fa-clipboard-question"></i> Queue Item #${idx + 1}</span>
+          <div class="card-meta-inputs" style="gap: 0.5rem; align-items: center;">
+            <span class="badge" style="background: var(--bg-input); border: 1px solid var(--border-color); font-size: 0.75rem;">${q.subject || 'English'}</span>
+            <span class="badge" style="background: var(--bg-input); border: 1px solid var(--border-color); font-size: 0.75rem;">${q.topic || 'General'}</span>
+            <button class="btn btn-sm btn-primary jump-to-review-btn" data-qidx="${idx}">
+              <i class="fa-solid fa-bullseye"></i> Review This Question
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <p style="font-size: 0.95rem; line-height: 1.5; color: var(--text-primary); margin-bottom: 0.5rem;">${escapeHtml(q.questionText)}</p>
+        </div>
+      `;
+      queueListContainer.appendChild(card);
+    });
+
+    document.querySelectorAll('.jump-to-review-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const qIdx = parseInt(e.currentTarget.dataset.qidx);
+        reviewFocusModeBtn.click();
+        fetchFocusQuestion(qIdx);
+      });
+    });
+  }
+
+  if (queueListSearchInput) queueListSearchInput.addEventListener('input', fetchQueueList);
+  if (emptyQueueToBankBtn) {
+    emptyQueueToBankBtn.addEventListener('click', () => switchMainMode('reviewed_bank'));
+  }
+
+  // =========================================================================
+  // REVIEWED QUESTION BANK (PRODUCTION DB)
+  // =========================================================================
+  let reviewedBankData = [];
+  const reviewedBankList = document.getElementById('reviewedBankList');
+  const reviewedBankTotalBadge = document.getElementById('reviewedBankTotalBadge');
+  const reviewedBankSearchInput = document.getElementById('reviewedBankSearchInput');
+  const reviewedBankSubjectFilter = document.getElementById('reviewedBankSubjectFilter');
+  const reviewedBankLabelFilter = document.getElementById('reviewedBankLabelFilter');
+  const refreshReviewedBankBtn = document.getElementById('refreshReviewedBankBtn');
+  const exportReviewedBankJsonBtn = document.getElementById('exportReviewedBankJsonBtn');
+
+  async function fetchReviewedBank() {
+    if (!reviewedBankList) return;
+    reviewedBankList.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner spin-icon"></i> Loading Reviewed Bank...</div>';
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/reviewed-questions`);
+      if (res.ok) {
+        const data = await res.json();
+        reviewedBankData = data.questions || [];
+        renderReviewedBank();
+      }
+    } catch(err) {
+      reviewedBankList.innerHTML = `<div class="empty-state text-danger">Error: ${err.message}</div>`;
+    }
+  }
+
+  function renderReviewedBank() {
+    if (!reviewedBankList) return;
+    if (reviewedBankData.length === 0) {
+      reviewedBankList.innerHTML = '<div class="empty-state">No reviewed questions yet. As Guy B grants questions, they appear here.</div>';
+      if (reviewedBankTotalBadge) reviewedBankTotalBadge.textContent = '0 Vetted Questions';
+      return;
+    }
+
+    const query = (reviewedBankSearchInput ? reviewedBankSearchInput.value : '').toLowerCase().trim();
+    const subjVal = reviewedBankSubjectFilter ? reviewedBankSubjectFilter.value : 'all';
+    const labelVal = reviewedBankLabelFilter ? reviewedBankLabelFilter.value : 'all';
+
+    const filtered = reviewedBankData.filter(q => {
+      if (subjVal !== 'all' && (q.subject || '').toLowerCase() !== subjVal.toLowerCase()) return false;
       if (labelVal !== 'all' && (q.label || '').toLowerCase() !== labelVal.toLowerCase()) return false;
       if (query) {
         const matchQ = (q.questionText || '').toLowerCase().includes(query);
         const matchHint = (q.hint || '').toLowerCase().includes(query);
         const matchTopic = (q.topic || '').toLowerCase().includes(query);
-        const matchSubtopic = (q.subtopic || '').toLowerCase().includes(query);
-        const matchOpts = (q.options || []).some(o => (o.text || '').toLowerCase().includes(query));
-        if (!matchQ && !matchHint && !matchTopic && !matchSubtopic && !matchOpts) return false;
+        if (!matchQ && !matchHint && !matchTopic) return false;
       }
       return true;
     });
 
-    qbTotalBadge.textContent = `${filtered.length} Questions`;
+    if (reviewedBankTotalBadge) reviewedBankTotalBadge.textContent = `${filtered.length} Vetted Questions`;
 
     if (filtered.length === 0) {
-      qbStandaloneList.innerHTML = '<div class="empty-state">No matching questions found.</div>';
+      reviewedBankList.innerHTML = '<div class="empty-state">No matching questions found in Reviewed Bank.</div>';
       return;
     }
 
-    qbStandaloneList.innerHTML = '';
+    reviewedBankList.innerHTML = '';
     filtered.forEach((q, idx) => {
       const card = document.createElement('div');
       card.className = 'question-card collapsible';
@@ -1453,73 +1921,83 @@ Options:
         <div class="card-header qb-card-toggle">
           <div style="display: flex; align-items: center; gap: 0.75rem;">
             <i class="fa-solid fa-chevron-down expand-chevron"></i>
-            <span class="question-index"><i class="fa-solid fa-database"></i> Question ${idx + 1}</span>
+            <span class="question-index"><i class="fa-solid fa-circle-check" style="color: #10b981;"></i> Question ${idx + 1}</span>
           </div>
-          <div class="card-meta-inputs" style="gap: 0.6rem; align-items: center;">
+          <div class="card-meta-inputs" style="gap: 0.5rem; align-items: center;">
             ${q.isUsed ? `<span class="used-stamp">USED</span>` : ''}
-            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-weight:600; text-transform:uppercase; font-size:0.75rem; color:#818cf8;">${q.label || 'medium'}</span>
-            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-size:0.75rem;">${q.subject || 'N/A'}</span>
-            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-size:0.75rem;">${q.topic || 'N/A'}</span>
-            ${q.id ? `<button class="btn btn-icon text-danger delete-qb-item-btn" data-id="${q.id}" title="Delete from Question Bank"><i class="fa-solid fa-trash"></i></button>` : ''}
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); font-size:0.75rem; text-transform:uppercase; color:#818cf8;">${q.label || 'medium'}</span>
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); font-size:0.75rem;">${q.subject || 'N/A'}</span>
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); font-size:0.75rem;">${q.topic || 'N/A'}</span>
+            ${q.id ? `<button class="btn btn-icon text-danger del-reviewed-btn" data-id="${q.id}" title="Delete from Reviewed Bank"><i class="fa-solid fa-trash"></i></button>` : ''}
           </div>
         </div>
         <div class="card-body-collapsible">
           <div class="form-group">
             <label><i class="fa-solid fa-pen-nib"></i> Question Text</label>
             <textarea class="q-text-input" rows="2" disabled>${escapeHtml(q.questionText)}</textarea>
-            <div class="latex-preview-box math-render qb-math-q" style="margin-top:0.4rem;"></div>
+            <div class="latex-preview-box math-render rev-math-q" style="margin-top:0.4rem;"></div>
           </div>
           ${q.hint ? `
           <div class="hint-wrapper">
-            <div class="hint-header"><label><i class="fa-solid fa-lightbulb"></i> Hint / Explanation</label></div>
+            <div class="hint-header"><label><i class="fa-solid fa-lightbulb"></i> Solution / Explanation</label></div>
             <textarea class="q-hint-input" rows="3" disabled>${escapeHtml(q.hint)}</textarea>
-            <div class="latex-preview-box math-render qb-math-h" style="margin-top:0.4rem;"></div>
+            <div class="latex-preview-box math-render rev-math-h" style="margin-top:0.4rem;"></div>
           </div>` : ''}
-          <div class="options-container" style="margin-top:1rem;">
+          <div class="options-container" style="margin-top:0.75rem;">
             ${optionsHtml}
           </div>
         </div>
       `;
-      
-      const headerEl = card.querySelector('.qb-card-toggle');
-      headerEl.addEventListener('click', (e) => {
-        // Prevent expanding when clicking delete button
-        if (e.target.closest('.delete-qb-item-btn')) return;
+
+      card.querySelector('.qb-card-toggle').addEventListener('click', (e) => {
+        if (e.target.closest('.del-reviewed-btn')) return;
         card.classList.toggle('expanded');
       });
 
-      const qBox = card.querySelector('.qb-math-q');
+      const qBox = card.querySelector('.rev-math-q');
       if (qBox) renderMathInContainer(qBox, q.questionText);
-      const hBox = card.querySelector('.qb-math-h');
+      const hBox = card.querySelector('.rev-math-h');
       if (hBox && q.hint) renderMathInContainer(hBox, q.hint);
 
-      qbStandaloneList.appendChild(card);
+      reviewedBankList.appendChild(card);
     });
 
-    // Delete question from MongoDB handler
-    document.querySelectorAll('.delete-qb-item-btn').forEach(btn => {
+    document.querySelectorAll('.del-reviewed-btn').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         const qId = e.currentTarget.dataset.id;
-        if (!confirm('Are you sure you want to delete this question from the Question Bank?')) return;
-        
+        if (!confirm('Are you sure you want to delete this verified question from the Reviewed Bank?')) return;
         try {
-          const res = await fetch(`${API_BASE}/api/questions/${qId}`, { method: 'DELETE' });
-          if (res.ok) {
-            fetchStandaloneQb();
-          } else {
-            const data = await res.json();
-            alert('Delete failed: ' + (data.detail || 'Unknown error'));
-          }
+          const res = await fetch(`${API_BASE}/api/reviewed-questions/${qId}`, { method: 'DELETE' });
+          if (res.ok) fetchReviewedBank();
         } catch(err) {
-          alert('Network error: ' + err.message);
+          alert('Delete error: ' + err.message);
         }
       });
     });
   }
 
+  if (refreshReviewedBankBtn) refreshReviewedBankBtn.addEventListener('click', fetchReviewedBank);
+  if (reviewedBankSearchInput) reviewedBankSearchInput.addEventListener('input', renderReviewedBank);
+  if (reviewedBankSubjectFilter) reviewedBankSubjectFilter.addEventListener('change', renderReviewedBank);
+  if (reviewedBankLabelFilter) reviewedBankLabelFilter.addEventListener('change', renderReviewedBank);
+
+  if (exportReviewedBankJsonBtn) {
+    exportReviewedBankJsonBtn.addEventListener('click', () => {
+      const jsonStr = JSON.stringify(reviewedBankData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'reviewed_questions.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    });
+  }
 
   // =========================================================================
-  // Single Question Upload Form Logic (Option 3)
+  // ADD SINGLE QUESTION (OPTION 4)
   // =========================================================================
   const singleQuestionForm = document.getElementById('singleQuestionForm');
   const singleSubjectSelect = document.getElementById('singleSubjectSelect');
@@ -1539,26 +2017,10 @@ Options:
     { text: '', isCorrect: false }
   ];
 
-  const singleQTextPreview = document.getElementById('singleQTextPreview');
-  const singleHintPreview = document.getElementById('singleHintPreview');
-
   function initSingleQForm() {
     updateSingleTopics();
     renderSingleOptions();
-    updateSinglePreviews();
   }
-
-  function updateSinglePreviews() {
-    if (singleQTextInput && singleQTextPreview) {
-      renderMathInContainer(singleQTextPreview, singleQTextInput.value.trim());
-    }
-    if (singleHintInput && singleHintPreview) {
-      renderMathInContainer(singleHintPreview, singleHintInput.value.trim());
-    }
-  }
-
-  if (singleQTextInput) singleQTextInput.addEventListener('input', updateSinglePreviews);
-  if (singleHintInput) singleHintInput.addEventListener('input', updateSinglePreviews);
 
   function updateSingleTopics() {
     const sub = singleSubjectSelect.value;
@@ -1597,14 +2059,13 @@ Options:
       row.className = `option-row ${opt.isCorrect ? 'correct' : ''}`;
       row.innerHTML = `
         <input type="radio" name="single_correct_opt" class="radio-custom" ${opt.isCorrect ? 'checked' : ''} data-idx="${idx}">
-        <input type="text" class="option-input single-opt-txt" value="${escapeHtml(opt.text)}" placeholder="Option ${chr(65+idx)} text..." data-idx="${idx}" required>
+        <input type="text" class="option-input single-opt-txt" value="${escapeHtml(opt.text)}" placeholder="Option ${chr(65+idx)}..." data-idx="${idx}" required>
         ${opt.isCorrect ? '<span class="correct-badge"><i class="fa-solid fa-check"></i> Correct</span>' : ''}
         ${singleOptions.length > 2 ? `<button type="button" class="btn btn-icon text-danger single-del-opt-btn" data-idx="${idx}"><i class="fa-solid fa-xmark"></i></button>` : ''}
       `;
       singleOptionsList.appendChild(row);
     });
 
-    // Option events
     document.querySelectorAll('input[name="single_correct_opt"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         const correctIdx = parseInt(e.target.dataset.idx);
@@ -1639,86 +2100,57 @@ Options:
     });
   }
 
-  if (singleResetBtn) {
-    singleResetBtn.addEventListener('click', () => {
-      singleQTextInput.value = '';
-      singleHintInput.value = '';
-      singleOptions = [
-        { text: '', isCorrect: true },
-        { text: '', isCorrect: false },
-        { text: '', isCorrect: false },
-        { text: '', isCorrect: false }
-      ];
-      renderSingleOptions();
-    });
-  }
-
   if (singleQuestionForm) {
     singleQuestionForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-
-      const qText = singleQTextInput.value.trim();
-      if (!qText) {
-        alert('Please enter question text.');
-        return;
-      }
-
-      if (singleOptions.some(o => !o.text.trim())) {
-        alert('Please fill in text for all options.');
-        return;
-      }
+      const targetDbRadio = document.querySelector('input[name="single_target_db"]:checked');
+      const targetDb = targetDbRadio ? targetDbRadio.value : 'staging';
 
       const questionObj = {
         subject: singleSubjectSelect.value,
         topic: singleTopicSelect.value,
         subtopic: singleSubtopicSelect.value,
         label: singleLabelSelect.value,
-        questionText: qText,
+        questionText: singleQTextInput.value.trim(),
         hint: singleHintInput.value.trim(),
         options: singleOptions.map(o => ({ text: o.text.trim(), isCorrect: o.isCorrect }))
       };
 
-      const submitBtn = document.getElementById('singleSubmitBtn');
-      const origHtml = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i> Saving...';
-      submitBtn.disabled = true;
+      const endpoint = targetDb === 'reviewed' 
+        ? `${API_BASE}/api/reviewed-questions` 
+        : `${API_BASE}/api/unreviewed-questions/bulk`;
+
+      const payload = targetDb === 'reviewed' 
+        ? questionObj 
+        : { questions: [questionObj] };
 
       try {
-        const res = await fetch(`${API_BASE}/api/questions`, {
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(questionObj)
+          body: JSON.stringify(payload)
         });
-        const result = await res.json();
         if (res.ok) {
-          alert('Question successfully saved to Question Bank!');
+          alert(`Question saved successfully to ${targetDb === 'reviewed' ? 'Reviewed Bank' : "Guy B's Review Queue"}!`);
           singleQTextInput.value = '';
           singleHintInput.value = '';
-          singleOptions = [
-            { text: '', isCorrect: true },
-            { text: '', isCorrect: false },
-            { text: '', isCorrect: false },
-            { text: '', isCorrect: false }
-          ];
-          renderSingleOptions();
+          fetchPendingReviewCount();
         } else {
-          alert('Error saving question: ' + (result.detail || 'Unknown error'));
+          alert('Error saving question.');
         }
       } catch (err) {
         alert('Network error: ' + err.message);
-      } finally {
-        submitBtn.innerHTML = origHtml;
-        submitBtn.disabled = false;
       }
     });
   }
 
   // =========================================================================
-  // Mock Test Paper Generator Logic (Option 4)
+  // MOCK TEST GENERATOR (EXCLUSIVELY FROM REVIEWED DATABASE)
   // =========================================================================
   const mockGeneratorForm = document.getElementById('mockGeneratorForm');
   const mockEnglishCount = document.getElementById('mockEnglishCount');
   const mockQuantsCount = document.getElementById('mockQuantsCount');
+  const mockLrdiCount = document.getElementById('mockLrdiCount');
   const mockEasyPct = document.getElementById('mockEasyPct');
   const mockMediumPct = document.getElementById('mockMediumPct');
   const mockHardPct = document.getElementById('mockHardPct');
@@ -1735,6 +2167,7 @@ Options:
 
   const mockEnglishCountVal = document.getElementById('mockEnglishCountVal');
   const mockQuantsCountVal = document.getElementById('mockQuantsCountVal');
+  const mockLrdiCountVal = document.getElementById('mockLrdiCountVal');
   const mockEasyPctVal = document.getElementById('mockEasyPctVal');
   const mockMediumPctVal = document.getElementById('mockMediumPctVal');
   const mockHardPctVal = document.getElementById('mockHardPctVal');
@@ -1747,6 +2180,7 @@ Options:
   function updateSliderBadges() {
     if (mockEnglishCountVal && mockEnglishCount) mockEnglishCountVal.textContent = `${mockEnglishCount.value} Questions`;
     if (mockQuantsCountVal && mockQuantsCount) mockQuantsCountVal.textContent = `${mockQuantsCount.value} Questions`;
+    if (mockLrdiCountVal && mockLrdiCount) mockLrdiCountVal.textContent = `${mockLrdiCount.value} Questions`;
     if (mockEasyPctVal && mockEasyPct) mockEasyPctVal.textContent = `${mockEasyPct.value}%`;
     if (mockMediumPctVal && mockMediumPct) mockMediumPctVal.textContent = `${mockMediumPct.value}%`;
     if (mockHardPctVal && mockHardPct) mockHardPctVal.textContent = `${mockHardPct.value}%`;
@@ -1754,6 +2188,7 @@ Options:
 
   if (mockEnglishCount) mockEnglishCount.addEventListener('input', updateSliderBadges);
   if (mockQuantsCount) mockQuantsCount.addEventListener('input', updateSliderBadges);
+  if (mockLrdiCount) mockLrdiCount.addEventListener('input', updateSliderBadges);
 
   function updateDiffTotalBadge() {
     updateSliderBadges();
@@ -1779,22 +2214,15 @@ Options:
 
   if (resetAllUsedBtn) {
     resetAllUsedBtn.addEventListener('click', async () => {
-      if (!confirm('Are you sure you want to reset all USED stamps in MongoDB back to unused?')) return;
-      const origText = resetAllUsedBtn.innerHTML;
-      resetAllUsedBtn.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i> Resetting...';
+      if (!confirm('Reset all USED stamps in Reviewed DB back to unused?')) return;
       try {
-        const res = await fetch(`${API_BASE}/api/questions/reset-used`, { method: 'POST' });
+        const res = await fetch(`${API_BASE}/api/reviewed-questions/reset-used`, { method: 'POST' });
         const result = await res.json();
         if (res.ok) {
           alert(result.message);
-          if (qbStandaloneData) fetchStandaloneQb();
-        } else {
-          alert('Error: ' + result.detail);
         }
       } catch(err) {
         alert('Network error: ' + err.message);
-      } finally {
-        resetAllUsedBtn.innerHTML = origText;
       }
     });
   }
@@ -1807,21 +2235,24 @@ Options:
       const med = parseFloat(mockMediumPct.value) || 0;
       const hard = parseFloat(mockHardPct.value) || 0;
       if (Math.abs((easy + med + hard) - 100) > 0.01) {
-        alert('Difficulty allocation percentages must add up to exactly 100%. Current total: ' + (easy + med + hard) + '%');
+        alert('Difficulty allocation percentages must add up to exactly 100%.');
         return;
       }
 
       const engCount = parseInt(mockEnglishCount.value) || 0;
       const quantsCount = parseInt(mockQuantsCount.value) || 0;
-      if (engCount + quantsCount <= 0) {
-        alert('Please specify at least 1 question for English or Quants.');
+      const lrdiCount = parseInt(mockLrdiCount.value) || 0;
+
+      if (engCount + quantsCount + lrdiCount <= 0) {
+        alert('Please specify at least 1 question for a subject.');
         return;
       }
 
       const payload = {
         subjectCounts: {
           "English": engCount,
-          "Quants": quantsCount
+          "Quants": quantsCount,
+          "LRDI": lrdiCount
         },
         difficulty: {
           "easy": easy,
@@ -1833,7 +2264,7 @@ Options:
 
       const btn = document.getElementById('generateMockBtn');
       const origHtml = btn.innerHTML;
-      btn.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i> Generating Mock Paper...';
+      btn.innerHTML = '<i class="fa-solid fa-spinner spin-icon"></i> Generating from Reviewed DB...';
       btn.disabled = true;
 
       try {
@@ -1847,7 +2278,7 @@ Options:
           generatedMockQuestions = result.questions || [];
           renderMockResults();
         } else {
-          alert('Error generating mock paper: ' + (result.detail || 'Unknown error'));
+          alert('Error: ' + (result.detail || 'Failed to generate mock'));
         }
       } catch (err) {
         alert('Network error: ' + err.message);
@@ -1865,7 +2296,7 @@ Options:
     mockQuestionsList.innerHTML = '';
 
     if (generatedMockQuestions.length === 0) {
-      mockQuestionsList.innerHTML = '<div class="empty-state">No questions found matching your criteria. Try adjusting difficulty percentages or question counts.</div>';
+      mockQuestionsList.innerHTML = '<div class="empty-state">No questions found matching your criteria in Reviewed Bank. Please ensure Guy B has approved questions.</div>';
       return;
     }
 
@@ -1887,11 +2318,11 @@ Options:
       card.innerHTML = `
         <div class="card-header">
           <span class="question-index"><i class="fa-solid fa-file-signature"></i> Question ${idx + 1}</span>
-          <div class="card-meta-inputs" style="gap: 0.6rem; align-items: center;">
+          <div class="card-meta-inputs" style="gap: 0.5rem; align-items: center;">
             <span class="used-stamp">USED</span>
-            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-weight:600; text-transform:uppercase; font-size:0.75rem; color:#818cf8;">${q.label || 'medium'}</span>
-            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-size:0.75rem;">${q.subject || 'N/A'}</span>
-            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); padding:0.2rem 0.6rem; border-radius:4px; font-size:0.75rem;">${q.topic || 'N/A'}</span>
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); font-size:0.75rem; text-transform:uppercase; color:#818cf8;">${q.label || 'medium'}</span>
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); font-size:0.75rem;">${q.subject || 'N/A'}</span>
+            <span class="badge" style="background:var(--bg-panel); border:1px solid var(--border-color); font-size:0.75rem;">${q.topic || 'N/A'}</span>
           </div>
         </div>
         <div class="card-body">
@@ -1902,11 +2333,11 @@ Options:
           </div>
           ${q.hint ? `
           <div class="hint-wrapper">
-            <div class="hint-header"><label><i class="fa-solid fa-lightbulb"></i> Hint / Explanation</label></div>
+            <div class="hint-header"><label><i class="fa-solid fa-lightbulb"></i> Solution / Explanation</label></div>
             <textarea class="q-hint-input" rows="3" disabled>${escapeHtml(q.hint)}</textarea>
             <div class="latex-preview-box math-render mock-math-h" style="margin-top:0.4rem;"></div>
           </div>` : ''}
-          <div class="options-container" style="margin-top:1rem;">
+          <div class="options-container" style="margin-top:0.75rem;">
             ${optionsHtml}
           </div>
         </div>
@@ -1932,7 +2363,7 @@ Options:
   }
 
   if (downloadMockJsonBtn) {
-    downloadMockJsonBtn.addEventListener('click', async () => {
+    downloadMockJsonBtn.addEventListener('click', () => {
       const jsonStr = JSON.stringify(generatedMockQuestions, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
@@ -1946,9 +2377,83 @@ Options:
     });
   }
 
-  function chr(n) {
-    return String.fromCharCode(n);
+  // General Utilities
+  function renderMathInContainer(container, rawText) {
+    if (!container) return;
+    container.innerHTML = rawText || '';
+    if (window.renderMathInElement) {
+      try {
+        renderMathInElement(container, {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+          ],
+          throwOnError: false
+        });
+      } catch(e) {}
+    }
   }
+
+  function copyTextToClipboard(textToCopy) {
+    if (!textToCopy) return Promise.reject(new Error('Nothing to copy'));
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(textToCopy);
+    } else {
+      return new Promise((resolve, reject) => {
+        try {
+          const textArea = document.createElement('textarea');
+          textArea.value = textToCopy;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          const ok = document.execCommand('copy');
+          document.body.removeChild(textArea);
+          if (ok) resolve();
+          else reject(new Error('copy failed'));
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // Dark/Light theme toggle
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', () => {
+      document.body.classList.toggle('light-theme');
+      const isLight = document.body.classList.contains('light-theme');
+      themeToggleBtn.innerHTML = isLight ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
+    });
+  }
+
+  // Keyboard shortcuts for Reviewer mode
+  document.addEventListener('keydown', (e) => {
+    if (!document.body.classList.contains('reviewer-mode')) return;
+
+    // Ctrl+Enter or Cmd+Enter: Approve & Grant
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      const approveBtn = document.getElementById('focusApproveQuestionBtn');
+      if (approveBtn && !approveBtn.disabled) approveBtn.click();
+    }
+    // Ctrl+S or Cmd+S: Save Draft
+    else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      const draftBtn = document.getElementById('focusSaveDraftBtn');
+      if (draftBtn && !draftBtn.disabled) draftBtn.click();
+    }
+  });
+
+  // Initialize Auth and Workspace Role Gateway after all handlers are bound
+  initGoogleAuth();
 
 });
 

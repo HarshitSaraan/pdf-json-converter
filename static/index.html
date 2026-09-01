@@ -21,7 +21,7 @@
   <!-- Google Identity Services SDK -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-  <link rel="stylesheet" href="style.css?v=3.5">
+  <link rel="stylesheet" href="style.css?v=4.2.0">
 </head>
 <body>
 
@@ -39,8 +39,11 @@
         <span class="status-badge" id="statusBadge">
           <i class="fa-solid fa-circle-dot"></i> Ready
         </span>
+        <button id="switchRoleNavBtn" class="btn btn-outline btn-sm" title="Switch Workspace Role">
+          <i class="fa-solid fa-users-gear"></i> <span id="activeRoleNavLabel">Parser (Guy A)</span>
+        </button>
         <button id="promptSettingsBtn" class="btn btn-outline btn-sm" title="Configure Subject Prompts & Conditions">
-          <i class="fa-solid fa-sliders"></i> Subject Prompts
+          <i class="fa-solid fa-sliders"></i> Prompts
         </button>
         <button id="aiSettingsBtn" class="btn btn-outline btn-sm" title="Configure AI API Key (Google Gemini)">
           <i class="fa-solid fa-key"></i> AI Settings
@@ -65,6 +68,57 @@
       </div>
     </div>
   </header>
+
+  <!-- Role Selection Gateway (Asks user whether they are Parser or Reviewer) -->
+  <div id="roleGatewayScreen" class="role-gateway-overlay">
+    <div class="role-gateway-modal" style="max-width: 680px; padding: 2.5rem 2rem;">
+      <h1 class="role-modal-title" style="font-size: 1.85rem; margin-bottom: 0.4rem;">Select Workspace</h1>
+      <p class="role-modal-subtitle" style="margin-bottom: 1.75rem; color: var(--text-secondary);">Who is logging in?</p>
+
+      <div class="role-cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem; margin-bottom: 1.5rem;">
+        
+        <!-- Role 1: Question Parser (Guy A) -->
+        <div class="role-selection-card" id="selectRoleParserBtn" role="button" tabindex="0" onclick="window.selectUserRole && window.selectUserRole('parser')">
+          <div class="role-card-header" style="margin-bottom: 1rem;">
+            <div class="role-icon-box parser-theme">
+              <i class="fa-solid fa-file-arrow-up"></i>
+            </div>
+            <div class="role-badge parser-badge">GUY A</div>
+          </div>
+          <h3 class="role-card-title" style="font-size: 1.25rem; margin-bottom: 0.25rem;">Question Parser</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">PDF & Raw Text MCQ Ingestion</p>
+          <button type="button" class="btn btn-primary role-enter-btn" id="enterParserHubBtn" onclick="event.stopPropagation(); window.selectUserRole && window.selectUserRole('parser');">
+            <span>Question Parser</span>
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+
+        <!-- Role 2: Question Reviewer (Guy B) -->
+        <div class="role-selection-card reviewer-highlight" id="selectRoleReviewerBtn" role="button" tabindex="0" onclick="window.selectUserRole && window.selectUserRole('reviewer')">
+          <div class="role-card-header" style="margin-bottom: 1rem;">
+            <div class="role-icon-box reviewer-theme">
+              <i class="fa-solid fa-clipboard-check"></i>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <span class="badge badge-warning" id="gatewayPendingBadge" style="font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 12px; background: rgba(245,158,11,0.2); color: #f59e0b; border: 1px solid rgba(245,158,11,0.4);">0 in Queue</span>
+              <div class="role-badge reviewer-badge">GUY B</div>
+            </div>
+          </div>
+          <h3 class="role-card-title" style="font-size: 1.25rem; margin-bottom: 0.25rem;">Question Reviewer</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">1-by-1 Full-Screen Focus Studio</p>
+          <button type="button" class="btn btn-success role-enter-btn" id="enterReviewerStudioBtn" onclick="event.stopPropagation(); window.selectUserRole && window.selectUserRole('reviewer');">
+            <span>Question Reviewer</span>
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+
+      </div>
+
+      <div class="role-modal-footer" style="padding-top: 1rem;">
+        <span><i class="fa-solid fa-circle-info"></i> Switch role anytime from the top navigation.</span>
+      </div>
+    </div>
+  </div>
 
   <!-- AI API Key Settings Modal -->
   <div class="modal-overlay hidden" id="aiModalOverlay">
@@ -186,7 +240,7 @@
   </div>
 
   <!-- Mandatory Auth Gate / Lock Screen (Displayed when not signed in) -->
-  <div id="authLockScreen" class="auth-lock-screen">
+  <div id="authLockScreen" class="auth-lock-screen hidden">
     <div class="lock-card">
       <div class="lock-icon-badge">
         <i class="fa-solid fa-shield-halved"></i>
@@ -199,6 +253,12 @@
       
       <div id="lockScreenGoogleBtnContainer" style="display: flex; justify-content: center; margin-top: 1.5rem;"></div>
 
+      <div style="margin-top: 1.25rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
+        <button type="button" id="localBypassBtn" class="btn btn-outline" style="width: 100%; border: 1px dashed #6366f1; color: #818cf8; font-weight: 600; padding: 0.65rem 1rem; border-radius: 8px;">
+          <i class="fa-solid fa-laptop-code"></i> Bypass Sign-in for Local Development (Admin)
+        </button>
+      </div>
+
       <div style="margin-top: 1.5rem; font-size: 0.78rem; color: var(--text-muted);">
         <i class="fa-solid fa-lock" style="color: #6366f1;"></i> Protected by Google Identity & OAuth Whitelist
       </div>
@@ -208,54 +268,73 @@
   <!-- Main Container -->
   <main class="app-container hidden" id="mainAppContainer">
     
-    <!-- Top 4 Primary Navigation Options -->
-    <div class="main-mode-switcher">
-      <button class="main-mode-btn active" id="modeExtractBtn">
-        <i class="fa-solid fa-file-pdf" style="color: #ef4444;"></i>
-        <span>1. Extract Document</span>
+    <!-- Top Navigation Options -->
+    <div class="main-mode-switcher" id="mainModeSwitcher">
+      <button class="main-mode-btn active" id="modeParserBtn">
+        <i class="fa-solid fa-file-arrow-up" style="color: #3b82f6;"></i>
+        <span>Question Parser</span>
       </button>
-      <button class="main-mode-btn" id="modeQbBtn">
+      <button class="main-mode-btn hidden" id="modeReviewerBtn">
+        <i class="fa-solid fa-clipboard-check" style="color: #10b981;"></i>
+        <span>Reviewer Studio</span>
+        <span class="badge badge-warning" id="navPendingReviewBadge" style="margin-left: 0.4rem; padding: 0.15rem 0.5rem; font-size: 0.75rem; border-radius: 12px; background: #f59e0b; color: #000; font-weight: 700;">0</span>
+      </button>
+      <button class="main-mode-btn" id="modeReviewedBankBtn">
         <i class="fa-solid fa-database" style="color: #6366f1;"></i>
-        <span>2. Question Bank</span>
+        <span>Reviewed Question Bank</span>
       </button>
       <button class="main-mode-btn" id="modeAddSingleBtn">
-        <i class="fa-solid fa-square-plus" style="color: #10b981;"></i>
-        <span>3. Add Question</span>
+        <i class="fa-solid fa-square-plus" style="color: #06b6d4;"></i>
+        <span>Add Question</span>
       </button>
       <button class="main-mode-btn" id="modeMockBtn">
         <i class="fa-solid fa-file-signature" style="color: #f59e0b;"></i>
-        <span>4. Create Mock Test</span>
+        <span>Create Mock Test</span>
       </button>
     </div>
 
-    <!-- Hero / Upload Section (Option 1) -->
-    <section class="upload-section" id="uploadSection">
-      <div class="hero-card">
+    <!-- ========================================================================= -->
+    <!-- GUY A: QUESTION PARSER & INGESTION HUB -->
+    <!-- ========================================================================= -->
+    <section class="parser-section" id="parserSection">
+      
+      <!-- Parser Sub-navigation Tabs: Document Upload vs Paste Text -->
+      <div style="display: flex; gap: 0.75rem; margin-bottom: 1.25rem; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+        <div class="segmented-control" style="margin: 0;">
+          <button class="segment-btn active" id="parserTabDocBtn">
+            <i class="fa-solid fa-file-pdf" style="color: #ef4444;"></i> Upload Document (PDF / DOCX)
+          </button>
+          <button class="segment-btn" id="parserTabPasteBtn">
+            <i class="fa-solid fa-paste" style="color: #3b82f6;"></i> Paste Raw Text
+          </button>
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.4rem;">
+          <i class="fa-solid fa-user-gear" style="color: #3b82f6;"></i> <strong>Role: Guy A</strong> (Extract & push to Guy B's staging queue)
+        </div>
+      </div>
+
+      <!-- Hero Card for Document Upload -->
+      <div class="hero-card" id="parserDocUploadCard">
         <!-- Subject Selection -->
         <div class="subject-picker-container">
           <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 0.5rem;">
             <label class="picker-label"><i class="fa-solid fa-graduation-cap"></i> Select Subject for Classification:</label>
             
             <!-- AI Topic Classification Toggle -->
-            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer; color: var(--text-secondary); background: var(--bg-input); padding: 0.35rem 0.75rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);" title="Check to use AI LLM for 100% topic classification precision (uses credits). Leave unchecked for free 0-credit mapping.">
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer; color: var(--text-secondary); background: var(--bg-input); padding: 0.35rem 0.75rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);" title="Check to use AI LLM for topic classification.">
               <input type="checkbox" id="useAiTopicsCheckbox">
               <span><i class="fa-solid fa-brain" style="color: #6366f1;"></i> AI Topic Mapping</span>
             </label>
             
             <!-- AI Document Extraction Toggle -->
-            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer; color: var(--text-secondary); background: var(--bg-input); padding: 0.35rem 0.75rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);" title="Check to use AI LLM to extract questions directly from the document (improves parsing accuracy).">
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer; color: var(--text-secondary); background: var(--bg-input); padding: 0.35rem 0.75rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);" title="Check to use AI LLM to extract questions directly.">
               <input type="checkbox" id="useAiExtractionCheckbox">
               <span><i class="fa-solid fa-robot" style="color: #6366f1;"></i> AI Extraction</span>
             </label>
           </div>
           
           <div class="subject-pills" id="subjectPillList">
-            <button class="subject-pill active" data-subject="English">
-              <i class="fa-solid fa-book-open"></i> English
-            </button>
-            <button class="subject-pill" data-subject="Quants">
-              <i class="fa-solid fa-calculator"></i> Quants
-            </button>
+            <!-- Dynamic Subject Pills -->
           </div>
         </div>
 
@@ -289,120 +368,375 @@
         <!-- Action Button -->
         <div class="upload-actions">
           <button id="parsePdfBtn" class="btn btn-primary btn-lg" disabled>
-            <i class="fa-solid fa-wand-magic-sparkles"></i> Parse Document to JSON
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Parse Document to Questions
           </button>
           <button id="loadSampleBtn" class="btn btn-secondary btn-lg">
-            <i class="fa-solid fa-flask"></i> Try Sample Document
+            <i class="fa-solid fa-flask"></i> Try Sample Questions
           </button>
         </div>
 
         <!-- Progress Bar -->
         <div class="progress-bar-container hidden" id="progressContainer">
           <div class="progress-bar" id="progressBar"></div>
-          <span class="progress-text" id="progressText">Parsing PDF content...</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- Results / Editor Section -->
-    <section class="workspace-section hidden" id="workspaceSection">
-      
-      <!-- Toolbar -->
-      <div class="workspace-header">
-        <div class="workspace-title">
-          <h3><i class="fa-solid fa-list-check"></i> Extracted Questions</h3>
-          <span class="count-badge" id="questionCountBadge">0 Questions</span>
-        </div>
-
-        <div class="workspace-controls">
-          <!-- View Toggle -->
-          <div class="segmented-control">
-            <button class="segment-btn active" id="viewCardsBtn">
-              <i class="fa-solid fa-file-pdf"></i> Current File
-            </button>
-            <button class="segment-btn" id="viewQbBtn">
-              <i class="fa-solid fa-database"></i> Question Bank
-            </button>
-            <button class="segment-btn" id="viewJsonBtn">
-              <i class="fa-solid fa-code"></i> JSON Raw
-            </button>
-          </div>
-
-          <div class="action-buttons-group">
-            <button class="btn btn-outline" id="addQuestionBtn">
-              <i class="fa-solid fa-plus"></i> Add Question
-            </button>
-            <button class="btn btn-outline" id="copyJsonBtn">
-              <i class="fa-regular fa-copy"></i> Copy JSON
-            </button>
-            <button class="btn btn-success" id="downloadJsonBtn">
-              <i class="fa-solid fa-download"></i> Download JSON
-            </button>
-          </div>
+          <span class="progress-text" id="progressText">Parsing document content...</span>
         </div>
       </div>
 
-      <!-- Search & Bulk Filter -->
-      <div class="filter-bar">
-        <div class="search-input-wrapper">
-          <i class="fa-solid fa-magnifying-glass search-icon"></i>
-          <input type="text" id="searchInput" placeholder="Search questions or options...">
-        </div>
-        <div class="bulk-topic-tools">
-          <input type="text" id="bulkTopicInput" placeholder="Set topic for all..." class="sm-input">
-          <button class="btn btn-sm btn-outline" id="applyBulkTopicBtn">Apply Topic</button>
-          <div class="ai-provider-toggle" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; border: 1px solid var(--border-color); padding: 0.2rem 0.5rem; border-radius: 4px;">
-            <label><input type="radio" name="global_ai_provider" value="gemini" checked> Gemini</label>
-            <label><input type="radio" name="global_ai_provider" value="chatgpt"> ChatGPT Free</label>
+      <!-- Hero Card for Paste Raw Text -->
+      <div class="hero-card hidden" id="parserPasteCard">
+        <!-- Subject Selection & AI Toggles -->
+        <div class="subject-picker-container">
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 0.5rem;">
+            <label class="picker-label"><i class="fa-solid fa-graduation-cap"></i> Select Subject for Classification:</label>
+            
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer; color: var(--text-secondary); background: var(--bg-input); padding: 0.35rem 0.75rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <input type="checkbox" id="pasteUseAiTopicsCheckbox">
+              <span><i class="fa-solid fa-brain" style="color: #6366f1;"></i> AI Topic Mapping</span>
+            </label>
+            
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; cursor: pointer; color: var(--text-secondary); background: var(--bg-input); padding: 0.35rem 0.75rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <input type="checkbox" id="pasteUseAiExtractionCheckbox">
+              <span><i class="fa-solid fa-robot" style="color: #6366f1;"></i> AI Extraction</span>
+            </label>
           </div>
-          <button class="btn btn-sm btn-primary" id="autoGenerateAllHintsBtn" title="Generate AI hints for questions that do not have one">
-            <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Missing Hints
-          </button>
-          <button class="btn btn-sm btn-success" id="addAllToQbBtn" title="Save all extracted questions to Database">
-            <i class="fa-solid fa-cloud-arrow-up"></i> Push All to DB
+          
+          <div class="subject-pills" id="pasteSubjectPillList">
+            <!-- Dynamic Subject Pills -->
+          </div>
+        </div>
+
+        <!-- Textarea Container -->
+        <div class="form-group" style="margin-top: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+            <label for="rawTextInput" style="font-weight: 600; font-size: 0.95rem; color: var(--text-primary);">
+              <i class="fa-solid fa-clipboard" style="color: #3b82f6;"></i> Paste Questions Text (MCQs, Options, Answers & Hints):
+            </label>
+            <div style="display: flex; gap: 0.5rem;">
+              <button type="button" class="btn btn-sm btn-outline" id="pasteClipboardBtn" title="Paste directly from clipboard">
+                <i class="fa-solid fa-paste"></i> Paste Clipboard
+              </button>
+              <button type="button" class="btn btn-sm btn-outline" id="loadPasteSampleBtn" title="Load example formatted MCQs">
+                <i class="fa-solid fa-flask"></i> Load Sample MCQs
+              </button>
+              <button type="button" class="btn btn-sm btn-icon text-danger" id="clearPasteTextBtn" title="Clear text area">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+          <textarea id="rawTextInput" class="raw-text-textarea" rows="12" placeholder="Paste your multiple choice questions here..."></textarea>
+        </div>
+
+        <!-- Action Button -->
+        <div class="upload-actions" style="margin-top: 1.25rem;">
+          <button id="parseTextBtn" class="btn btn-primary btn-lg">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Parse Text to Questions
           </button>
         </div>
+
+        <!-- Progress Bar -->
+        <div class="progress-bar-container hidden" id="pasteProgressContainer">
+          <div class="progress-bar" id="pasteProgressBar"></div>
+          <span class="progress-text" id="pasteProgressText">Parsing question text...</span>
+        </div>
       </div>
 
-      <!-- Main Editor Container -->
-      <div class="editor-container">
+      <!-- Parsed Results Workspace (Guy A Review & Push to Staging) -->
+      <div class="workspace-section hidden" id="workspaceSection" style="margin-top: 1.5rem;">
         
-        <!-- Cards View -->
-        <div class="cards-view" id="cardsView">
-          <div class="questions-list" id="questionsList">
-            <!-- Question Cards populated dynamically -->
+        <!-- Header & Push to Staging Bar -->
+        <div class="workspace-header" style="background: var(--bg-card); padding: 1.25rem 1.5rem; border-radius: var(--radius-lg); border: 1px solid var(--border-color); margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <h3 style="display: flex; align-items: center; gap: 0.6rem; font-size: 1.2rem;">
+              <i class="fa-solid fa-list-check" style="color: #3b82f6;"></i> Parsed Questions for Review
+              <span class="count-badge" id="questionCountBadge">0 Questions</span>
+            </h3>
+            <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.2rem;">
+              Select questions to send to Guy B (Reviewer queue in Questify Staging DB).
+            </p>
+          </div>
+
+          <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-outline btn-sm" id="selectAllParsedBtn">
+              <i class="fa-solid fa-check-double"></i> Select All
+            </button>
+            <button class="btn btn-outline btn-sm" id="deselectAllParsedBtn">
+              <i class="fa-regular fa-square"></i> Deselect
+            </button>
+            <button class="btn btn-success btn-lg" id="pushToReviewQueueBtn" style="font-weight: 700; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);">
+              <i class="fa-solid fa-paper-plane"></i> Send Selected to Guy B (Review Queue)
+            </button>
           </div>
         </div>
 
-        <!-- Question Bank View -->
-        <div class="cards-view hidden" id="qbView">
-          <div class="questions-list" id="qbList">
-            <!-- Question Bank Cards populated dynamically -->
+        <!-- Filter & Search Toolbar -->
+        <div class="filter-bar">
+          <div class="search-input-wrapper">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input type="text" id="searchInput" placeholder="Filter parsed questions by text or options...">
+          </div>
+          <div class="bulk-topic-tools">
+            <input type="text" id="bulkTopicInput" placeholder="Set topic for all..." class="sm-input">
+            <button class="btn btn-sm btn-outline" id="applyBulkTopicBtn">Apply Topic</button>
+            <button class="btn btn-sm btn-primary" id="autoGenerateAllHintsBtn" title="Generate AI hints for questions missing explanation">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Auto Hints
+            </button>
+            <button class="btn btn-sm btn-outline" id="downloadJsonBtn" title="Download raw JSON">
+              <i class="fa-solid fa-download"></i> JSON
+            </button>
           </div>
         </div>
 
-        <!-- JSON Raw Code View -->
-        <div class="json-view hidden" id="jsonView">
-          <div class="json-header">
-            <span class="json-schema-badge"><i class="fa-solid fa-check-double"></i> Schema Validated</span>
-            <span class="json-filename">questions.json</span>
+        <!-- Questions List Cards -->
+        <div class="editor-container">
+          <div class="cards-view" id="cardsView">
+            <div class="questions-list" id="questionsList">
+              <!-- Rendered parsed question cards with selection checkboxes -->
+            </div>
           </div>
-          <pre class="json-code-box"><code id="jsonCodeDisplay">[]</code></pre>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- GUY B: REVIEWER PORTAL (ONE-BY-ONE FOCUS QUEUE) -->
+    <!-- ========================================================================= -->
+    <section class="reviewer-section hidden" id="reviewerSection">
+      
+      <!-- Queue Stepper & Progress (Compact Top Navigation Bar - Shared between Focus and Queue List) -->
+      <div class="queue-stepper-container" style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.55rem 1rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; position: relative; overflow: hidden;">
+        <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+          <span class="stepper-title" id="stepperQuestionIndex" style="font-weight: 800; font-size: 0.95rem; color: var(--text-primary);">
+            Question 1 of 1
+          </span>
+          <span class="badge" id="focusQuestionMetaBadge" style="background: var(--bg-input); border: 1px solid var(--border-color); font-size: 0.75rem; color: #818cf8; padding: 0.15rem 0.5rem; border-radius: 4px;">
+            English &bull; VA
+          </span>
+          <span class="badge" id="reviewerQueueCountBadge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); padding: 0.15rem 0.55rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700;">
+            0 Pending Review
+          </span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+          <select id="reviewSubjectFilter" class="meta-select" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; height: 32px;">
+            <option value="all">All Subjects</option>
+            <option value="English">English</option>
+            <option value="Quants">Quants</option>
+            <option value="LRDI">LRDI</option>
+          </select>
+          
+          <div class="segmented-control" style="margin: 0; padding: 0.15rem;">
+            <button class="segment-btn active" id="reviewFocusModeBtn" style="padding: 0.25rem 0.65rem; font-size: 0.78rem;" title="One-by-one focus review">
+              <i class="fa-solid fa-bullseye"></i> Focus
+            </button>
+            <button class="segment-btn" id="reviewQueueListModeBtn" style="padding: 0.25rem 0.65rem; font-size: 0.78rem;" title="View all pending questions">
+              <i class="fa-solid fa-list-ul"></i> Queue List
+            </button>
+          </div>
+
+          <button class="btn btn-outline btn-sm" id="refreshReviewQueueBtn" style="padding: 0.3rem 0.6rem; height: 32px;" title="Refresh Review Queue">
+            <i class="fa-solid fa-rotate-right"></i>
+          </button>
+
+          <div id="queueNavPrevNextBtns" style="display: flex; gap: 0.35rem; margin-left: 0.25rem;">
+            <button class="btn btn-sm btn-outline" id="prevQueueItemBtn" style="padding: 0.3rem 0.65rem; font-size: 0.8rem; height: 32px;">
+              <i class="fa-solid fa-chevron-left"></i> Prev
+            </button>
+            <button class="btn btn-sm btn-outline" id="skipQueueItemBtn" style="padding: 0.3rem 0.65rem; font-size: 0.8rem; height: 32px;">
+              Skip / Next <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Progress Bar at bottom of stepper -->
+        <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--bg-input);">
+          <div id="queueProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #6366f1, #10b981); transition: width 0.3s ease;"></div>
+        </div>
+      </div>
+
+      <!-- FOCUS REVIEW VIEW (One-by-One Question Card) -->
+      <div id="reviewFocusView">
+        
+        <!-- Focus Review Card (Interactive Studio) -->
+        <div class="hero-card focus-review-card" id="focusReviewCard" style="margin-bottom: 4.5rem; padding: 1.5rem;">
+          
+          <!-- Slider Mode Switcher (Question <-> JSON) -->
+          <div class="focus-slider-bar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div class="segmented-control" id="focusSliderControl" style="margin: 0; padding: 0.2rem; background: var(--bg-primary);">
+              <button type="button" class="segment-btn active" id="focusQuestionTabBtn" style="padding: 0.35rem 1.2rem; font-size: 0.85rem;">
+                <i class="fa-solid fa-file-lines"></i> Question
+              </button>
+              <button type="button" class="segment-btn" id="focusJsonTabBtn" style="padding: 0.35rem 1.2rem; font-size: 0.85rem;">
+                <i class="fa-solid fa-code"></i> JSON
+              </button>
+            </div>
+
+            <div id="focusJsonActions" class="hidden" style="display: flex; gap: 0.5rem; align-items: center;">
+              <button type="button" class="btn btn-sm btn-outline" id="focusCopyJsonBtn" style="padding: 0.3rem 0.7rem; font-size: 0.8rem;">
+                <i class="fa-regular fa-copy"></i> Copy JSON
+              </button>
+              <button type="button" class="btn btn-sm btn-outline" id="focusPrettifyJsonBtn" style="padding: 0.3rem 0.7rem; font-size: 0.8rem;">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Prettify
+              </button>
+            </div>
+          </div>
+
+          <!-- QUESTION TAB VIEW -->
+          <div id="focusQuestionPane" style="display: flex; flex-direction: column; gap: 1.25rem;">
+            
+            <!-- 1. Classification Filter (Subject, Topic, Subtopic, Difficulty) -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; background: var(--bg-input); padding: 0.75rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;"><i class="fa-solid fa-graduation-cap"></i> Subject</label>
+                <select id="focusSubjectSelect" class="meta-select" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.85rem;">
+                  <option value="English">English</option>
+                  <option value="Quants">Quants</option>
+                  <option value="LRDI">LRDI</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;"><i class="fa-solid fa-folder"></i> Topic</label>
+                <select id="focusTopicSelect" class="meta-select" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.85rem;"></select>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;"><i class="fa-solid fa-folder-tree"></i> Subtopic</label>
+                <select id="focusSubtopicSelect" class="meta-select" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.85rem;"></select>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;"><i class="fa-solid fa-signal"></i> Difficulty</label>
+                <select id="focusLabelSelect" class="meta-select" style="width: 100%; padding: 0.4rem 0.6rem; font-size: 0.85rem;">
+                  <option value="easy">Easy</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- 2. Question Text (No duplicate preview box) -->
+            <div class="form-group" style="margin-bottom: 0;">
+              <label style="font-weight: 700; font-size: 0.88rem; margin-bottom: 0.4rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.4rem;">
+                <i class="fa-solid fa-pen-nib" style="color: #6366f1;"></i> Question Text
+              </label>
+              <textarea id="focusQTextInput" class="q-text-input" rows="4" placeholder="Question text..."></textarea>
+            </div>
+
+            <!-- 3. Multiple Choice Options -->
+            <div class="form-group" style="margin-bottom: 0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <label style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.4rem;">
+                  <i class="fa-solid fa-list-ol" style="color: #6366f1;"></i> Multiple Choice Options (Select radio for correct answer)
+                </label>
+                <button type="button" class="btn btn-sm btn-outline" id="focusAddOptBtn" style="padding: 0.25rem 0.65rem; font-size: 0.78rem;">
+                  <i class="fa-solid fa-plus"></i> Add Option
+                </button>
+              </div>
+              <div id="focusOptionsContainer" class="options-container">
+                <!-- Rendered dynamic option rows with radio & inputs -->
+              </div>
+            </div>
+
+            <!-- 4. Answer / Solution & Step-by-Step Explanation -->
+            <div class="form-group" style="margin-bottom: 0;">
+              <div class="hint-wrapper" style="display: flex; flex-direction: column;">
+                <div class="hint-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                  <label style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.4rem;">
+                    <i class="fa-solid fa-lightbulb" style="color: #f59e0b;"></i> Answer / Solution & Step-by-Step Explanation
+                  </label>
+                  <button class="ai-gen-btn" id="focusGenerateAiHintBtn" style="padding: 0.35rem 0.85rem; font-size: 0.8rem;">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> ✨ Generate / Refine AI Solution
+                  </button>
+                </div>
+                <textarea id="focusHintInput" class="q-hint-input" rows="4" placeholder="Step-by-step hint or explanation..."></textarea>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- JSON TAB VIEW -->
+          <div id="focusJsonPane" class="hidden" style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 0.8rem; color: var(--text-secondary);">
+                <i class="fa-solid fa-code" style="color: #6366f1;"></i> Question JSON format (live synchronized)
+              </span>
+              <span class="badge" style="font-size: 0.72rem; background: rgba(99, 102, 241, 0.12); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.25);">
+                Editable JSON
+              </span>
+            </div>
+            <textarea id="focusJsonEditor" style="width: 100%; min-height: 420px; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.88rem; background: #0b1120; color: #38bdf8; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem; line-height: 1.5; resize: vertical;" spellcheck="false" placeholder="Question JSON..."></textarea>
+          </div>
+
+          <!-- Sticky Bottom Action Bar for Guy B -->
+          <div class="reviewer-fixed-bottom-bar">
+            <button type="button" class="btn btn-outline text-danger" id="focusRejectQuestionBtn" title="Reject and delete question permanently from queue">
+              <i class="fa-solid fa-trash-can"></i> Reject Question
+            </button>
+            <div style="display: flex; gap: 0.75rem; align-items: center;">
+              <button type="button" class="btn btn-secondary" id="focusSaveDraftBtn" title="Save draft edits without approving">
+                <i class="fa-regular fa-floppy-disk"></i> Save Draft
+              </button>
+              <button type="button" class="btn btn-success btn-lg" id="focusApproveQuestionBtn" style="font-weight: 800; padding: 0.8rem 1.8rem; font-size: 1rem; box-shadow: 0 4px 18px rgba(16, 185, 129, 0.45);">
+                <i class="fa-solid fa-circle-check"></i> Grant & Push to Reviewed DB &rarr;
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Empty Queue State -->
+        <div class="hero-card hidden" id="reviewerEmptyQueueState" style="text-align: center; padding: 3.5rem 2rem;">
+          <div style="font-size: 3.5rem; color: #10b981; margin-bottom: 1rem;">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <h2 style="font-size: 1.75rem; font-weight: 800; margin-bottom: 0.5rem;">All Caught Up!</h2>
+          <p style="color: var(--text-secondary); max-width: 480px; margin: 0 auto 1.5rem auto;">
+            There are currently no pending questions waiting for review in the staging database. When Guy A parses new documents, they will appear here.
+          </p>
+          <button class="btn btn-primary" id="emptyQueueToBankBtn">
+            <i class="fa-solid fa-database"></i> View Reviewed Question Bank
+          </button>
         </div>
 
       </div>
+
+      <!-- QUEUE LIST VIEW (All Staging Questions Overview) -->
+      <div id="reviewQueueListView" class="hidden">
+        <div class="filter-bar" style="margin-bottom: 1.25rem;">
+          <div class="search-input-wrapper" style="flex: 1;">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input type="text" id="queueListSearchInput" placeholder="Search unreviewed questions in queue...">
+          </div>
+        </div>
+        <div class="editor-container">
+          <div class="cards-view">
+            <div class="questions-list" id="queueListContainer">
+              <!-- Dynamic queue cards -->
+            </div>
+          </div>
+        </div>
+      </div>
+
     </section>
 
-    <!-- Standalone Question Bank Section (Option 2) -->
-    <section class="qb-standalone-section hidden" id="qbStandaloneSection">
-      <div class="workspace-header">
-        <div class="workspace-title">
-          <h3><i class="fa-solid fa-database" style="color: #6366f1;"></i> MongoDB Question Bank</h3>
-          <span class="count-badge" id="qbTotalBadge">0 Questions</span>
+    <!-- ========================================================================= -->
+    <!-- REVIEWED QUESTION BANK (PRODUCTION DATABASE) -->
+    <!-- ========================================================================= -->
+    <section class="qb-standalone-section hidden" id="reviewedBankSection">
+      <div class="workspace-header" style="background: var(--bg-card); padding: 1.2rem 1.5rem; border-radius: var(--radius-lg); border: 1px solid var(--border-color); margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h3 style="display: flex; align-items: center; gap: 0.6rem; font-size: 1.25rem;">
+            <i class="fa-solid fa-database" style="color: #6366f1;"></i> Reviewed Question Bank
+            <span class="count-badge" id="reviewedBankTotalBadge">0 Vetted Questions</span>
+          </h3>
+          <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.2rem;">
+            Production repository of verified, vetted questions granted by Guy B. Mock tests are generated exclusively from here.
+          </p>
         </div>
         <div class="action-buttons-group">
-          <button class="btn btn-outline" id="refreshQbBtn">
-            <i class="fa-solid fa-rotate-right"></i> Refresh Bank
+          <button class="btn btn-outline btn-sm" id="refreshReviewedBankBtn">
+            <i class="fa-solid fa-rotate-right"></i> Refresh
+          </button>
+          <button class="btn btn-outline btn-sm" id="exportReviewedBankJsonBtn">
+            <i class="fa-solid fa-download"></i> Export JSON
           </button>
         </div>
       </div>
@@ -410,14 +744,15 @@
       <div class="filter-bar">
         <div class="search-input-wrapper" style="flex: 1;">
           <i class="fa-solid fa-magnifying-glass search-icon"></i>
-          <input type="text" id="qbSearchInput" placeholder="Filter question bank by text, topic, or subtopic...">
+          <input type="text" id="reviewedBankSearchInput" placeholder="Search reviewed questions by text, topic, or subtopic...">
         </div>
-        <select id="qbSubjectFilter" class="meta-select" style="padding: 0.5rem 0.8rem;">
+        <select id="reviewedBankSubjectFilter" class="meta-select" style="padding: 0.5rem 0.8rem;">
           <option value="all">All Subjects</option>
           <option value="English">English</option>
           <option value="Quants">Quants</option>
+          <option value="LRDI">LRDI</option>
         </select>
-        <select id="qbLabelFilter" class="meta-select" style="padding: 0.5rem 0.8rem;">
+        <select id="reviewedBankLabelFilter" class="meta-select" style="padding: 0.5rem 0.8rem;">
           <option value="all">All Difficulties</option>
           <option value="easy">Easy</option>
           <option value="medium">Medium</option>
@@ -427,22 +762,35 @@
 
       <div class="editor-container">
         <div class="cards-view">
-          <div class="questions-list" id="qbStandaloneList">
-            <!-- Question Bank cards populated dynamically -->
+          <div class="questions-list" id="reviewedBankList">
+            <!-- Reviewed Question Bank cards populated dynamically -->
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Single Question Upload Form Section (Option 3) -->
+    <!-- ========================================================================= -->
+    <!-- ADD SINGLE QUESTION (OPTION 4) -->
+    <!-- ========================================================================= -->
     <section class="single-q-section hidden" id="singleQSection">
       <div class="hero-card" style="max-width: 900px; margin: 0 auto;">
         <div class="hero-header">
-          <h2><i class="fa-solid fa-square-plus" style="color: #10b981;"></i> Add Single Question to Question Bank</h2>
-          <p class="modal-desc">Fill out the question details below to add a single question directly into your MongoDB Question Bank.</p>
+          <h2><i class="fa-solid fa-square-plus" style="color: #06b6d4;"></i> Add Single Question</h2>
+          <p class="modal-desc">Create a single question and choose whether to send to Guy B's review queue or directly into the Reviewed Question Bank.</p>
         </div>
 
         <form id="singleQuestionForm">
+          <!-- Target Collection Choice -->
+          <div style="background: var(--bg-input); padding: 0.85rem 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1.25rem; display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+            <span style="font-weight: 700; font-size: 0.85rem; color: var(--text-secondary);"><i class="fa-solid fa-arrows-split-up-and-left"></i> Save Destination:</span>
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; cursor: pointer;">
+              <input type="radio" name="single_target_db" value="staging" checked> Send to Guy B's Review Queue (Staging)
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; cursor: pointer;">
+              <input type="radio" name="single_target_db" value="reviewed"> Directly to Reviewed Question Bank
+            </label>
+          </div>
+
           <!-- Meta Fields Row -->
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
             <div class="form-group">
@@ -450,6 +798,7 @@
               <select id="singleSubjectSelect" class="meta-select" style="width: 100%; padding: 0.6rem;">
                 <option value="English">English</option>
                 <option value="Quants">Quants</option>
+                <option value="LRDI">LRDI</option>
               </select>
             </div>
             <div class="form-group">
@@ -473,7 +822,7 @@
           <!-- Question Text -->
           <div class="form-group" style="margin-bottom: 1.25rem;">
             <label><i class="fa-solid fa-pen-nib"></i> Question Text (LaTeX supported $...$)</label>
-            <textarea id="singleQTextInput" rows="3" class="q-text-input" placeholder="Type or paste question text here..." required></textarea>
+            <textarea id="singleQTextInput" rows="3" class="q-text-input" placeholder="Type question text here..." required></textarea>
             <div class="latex-preview-box math-render" id="singleQTextPreview" style="margin-top: 0.5rem;"></div>
           </div>
 
@@ -501,26 +850,30 @@
           <div style="display: flex; gap: 1rem; justify-content: flex-end;">
             <button type="button" class="btn btn-secondary" id="singleResetBtn">Reset Form</button>
             <button type="submit" class="btn btn-success btn-lg" id="singleSubmitBtn">
-              <i class="fa-solid fa-cloud-arrow-up"></i> Save to Question Bank
+              <i class="fa-solid fa-cloud-arrow-up"></i> Save Question
             </button>
           </div>
         </form>
       </div>
     </section>
 
-    <!-- Mock Test Paper Generator Section (Option 4) -->
+    <!-- ========================================================================= -->
+    <!-- MOCK & SECTIONAL TEST GENERATOR (PULLS EXCLUSIVELY FROM REVIEWED DB) -->
+    <!-- ========================================================================= -->
     <section class="mock-generator-section hidden" id="mockGeneratorSection">
       <div class="hero-card" style="max-width: 950px; margin: 0 auto 2rem auto;">
         <div class="hero-header">
-          <h2><i class="fa-solid fa-file-signature" style="color: #f59e0b;"></i> Mock Test Paper Generator</h2>
-          <p class="modal-desc">Configure question counts per subject and difficulty percentage allocation to generate a customized exam mock paper.</p>
+          <h2><i class="fa-solid fa-file-signature" style="color: #f59e0b;"></i> Mock & Sectional Test Generator</h2>
+          <p class="modal-desc">
+            Generates standardized mock tests and sectional papers <strong>strictly from the Reviewed Question Bank</strong>.
+          </p>
         </div>
 
         <form id="mockGeneratorForm">
           <!-- Subject Question Counts Container -->
           <div style="background: var(--bg-input); padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1.5rem;">
             <h4 style="margin-bottom: 1rem; font-size: 0.95rem; color: var(--text-primary);"><i class="fa-solid fa-graduation-cap" style="color: #6366f1;"></i> 1. Number of Questions per Subject</h4>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem;">
               <div class="form-group">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
                   <label>English Questions:</label>
@@ -534,6 +887,13 @@
                   <span class="range-val-badge" id="mockQuantsCountVal">10 Questions</span>
                 </div>
                 <input type="range" id="mockQuantsCount" class="range-slider" value="10" min="0" max="50" step="1">
+              </div>
+              <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                  <label>LRDI Questions:</label>
+                  <span class="range-val-badge" id="mockLrdiCountVal">5 Questions</span>
+                </div>
+                <input type="range" id="mockLrdiCount" class="range-slider" value="5" min="0" max="50" step="1">
               </div>
             </div>
           </div>
@@ -574,13 +934,13 @@
           <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
             <input type="checkbox" id="mockExcludeUsedCheckbox" checked style="width: 16px; height: 16px; cursor: pointer;">
             <label for="mockExcludeUsedCheckbox" style="font-size: 0.88rem; cursor: pointer; color: var(--text-secondary);">
-              Prioritize unused questions (automatically marks generated questions as <strong style="color: #ef4444;">USED</strong> in MongoDB)
+              Prioritize unused questions (automatically marks selected questions as <strong style="color: #ef4444;">USED</strong> in Reviewed Database)
             </label>
           </div>
 
           <!-- Actions Row -->
-          <div style="display: flex; gap: 1rem; justify-content: space-between; align-items: center;">
-            <button type="button" class="btn btn-outline text-muted btn-sm" id="resetAllUsedBtn" title="Reset all USED stamps in MongoDB back to unused">
+          <div style="display: flex; gap: 1rem; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+            <button type="button" class="btn btn-outline text-muted btn-sm" id="resetAllUsedBtn" title="Reset all USED stamps in Reviewed DB">
               <i class="fa-solid fa-rotate-left"></i> Reset All USED Stamps
             </button>
             <button type="submit" class="btn btn-primary btn-lg" id="generateMockBtn">
@@ -621,6 +981,6 @@
     </div>
   </footer>
 
-  <script src="app.js?v=3.5"></script>
+  <script src="app.js?v=4.2.0"></script>
 </body>
 </html>
