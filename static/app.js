@@ -548,6 +548,65 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchPendingReviewCount();
   }
 
+  let currentDatabase = localStorage.getItem('questify_current_db') || 'questify';
+
+  const dbSelectionModalOverlay = document.getElementById('dbSelectionModalOverlay');
+  const closeDbSelectionModalBtn = document.getElementById('closeDbSelectionModalBtn');
+  const dbCardQuestify = document.getElementById('dbCardQuestify');
+  const dbCardCatProject = document.getElementById('dbCardCatProject');
+  const modalDbCountQuestify = document.getElementById('modalDbCountQuestify');
+  const modalDbCountCatProject = document.getElementById('modalDbCountCatProject');
+
+  function openDbSelectionModal() {
+    if (dbSelectionModalOverlay) {
+      dbSelectionModalOverlay.classList.remove('hidden');
+      updateDbModalCounts();
+    }
+  }
+
+  function closeDbSelectionModal() {
+    if (dbSelectionModalOverlay) {
+      dbSelectionModalOverlay.classList.add('hidden');
+    }
+  }
+
+  if (closeDbSelectionModalBtn) {
+    closeDbSelectionModalBtn.addEventListener('click', closeDbSelectionModal);
+  }
+
+  async function updateDbModalCounts() {
+    try {
+      const res = await fetch(`${API_BASE}/api/databases`);
+      if (res.ok) {
+        const data = await res.json();
+        const dbs = data.databases || [];
+        dbs.forEach(d => {
+          if (d.id === 'questify' && modalDbCountQuestify) {
+            modalDbCountQuestify.textContent = `${d.unreviewedCount} in Queue`;
+          } else if (d.id === 'cat_project' && modalDbCountCatProject) {
+            modalDbCountCatProject.textContent = `${d.unreviewedCount} in Queue`;
+          }
+        });
+      }
+    } catch(e) {}
+  }
+
+  function selectReviewDatabase(dbName) {
+    currentDatabase = dbName || 'questify';
+    localStorage.setItem('questify_current_db', currentDatabase);
+    closeDbSelectionModal();
+    if (reviewerDatabaseSelect) reviewerDatabaseSelect.value = currentDatabase;
+    if (qbDatabaseSelect) qbDatabaseSelect.value = currentDatabase;
+    setUserRole('reviewer');
+  }
+
+  if (dbCardQuestify) {
+    dbCardQuestify.addEventListener('click', () => selectReviewDatabase('questify'));
+  }
+  if (dbCardCatProject) {
+    dbCardCatProject.addEventListener('click', () => selectReviewDatabase('cat_project'));
+  }
+
   function hideRoleGateway() {
     if (roleGatewayScreen) roleGatewayScreen.classList.add('hidden');
   }
@@ -580,7 +639,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   window.selectUserRole = function(role) {
-    setUserRole(role);
+    if (role === 'reviewer') {
+      hideRoleGateway();
+      openDbSelectionModal();
+    } else {
+      setUserRole(role);
+    }
   };
 
   const enterParserHubBtn = document.getElementById('enterParserHubBtn');
@@ -596,7 +660,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (enterReviewerStudioBtn) {
     enterReviewerStudioBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      setUserRole('reviewer');
+      hideRoleGateway();
+      openDbSelectionModal();
     });
   }
 
@@ -616,12 +681,14 @@ document.addEventListener('DOMContentLoaded', () => {
   if (selectRoleReviewerBtn) {
     selectRoleReviewerBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      setUserRole('reviewer');
+      hideRoleGateway();
+      openDbSelectionModal();
     });
     selectRoleReviewerBtn.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        setUserRole('reviewer');
+        hideRoleGateway();
+        openDbSelectionModal();
       }
     });
   }
@@ -1136,6 +1203,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let totalReviewQueueCount = 0;
   let reviewSubMode = 'focus'; // 'focus' or 'list'
 
+  const reviewerDatabaseSelect = document.getElementById('reviewerDatabaseSelect');
   const reviewerQueueCountBadge = document.getElementById('reviewerQueueCountBadge');
   const reviewSubjectFilter = document.getElementById('reviewSubjectFilter');
   const reviewFocusModeBtn = document.getElementById('reviewFocusModeBtn');
@@ -1149,6 +1217,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const stepperQuestionIndex = document.getElementById('stepperQuestionIndex');
   const focusQuestionMetaBadge = document.getElementById('focusQuestionMetaBadge');
+  const focusMockInfoBadge = document.getElementById('focusMockInfoBadge');
   const queueProgressBar = document.getElementById('queueProgressBar');
   const prevQueueItemBtn = document.getElementById('prevQueueItemBtn');
   const skipQueueItemBtn = document.getElementById('skipQueueItemBtn');
@@ -1178,6 +1247,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const queueListContainer = document.getElementById('queueListContainer');
   const queueListSearchInput = document.getElementById('queueListSearchInput');
   const emptyQueueToBankBtn = document.getElementById('emptyQueueToBankBtn');
+
+  if (reviewerDatabaseSelect) {
+    reviewerDatabaseSelect.value = currentDatabase;
+    reviewerDatabaseSelect.addEventListener('change', () => {
+      currentDatabase = reviewerDatabaseSelect.value;
+      localStorage.setItem('questify_current_db', currentDatabase);
+      if (qbDatabaseSelect) qbDatabaseSelect.value = currentDatabase;
+      initReviewerPortal();
+    });
+  }
 
   function normalizeParagraphText(text) {
     if (!text || typeof text !== 'string') return '';
@@ -1212,6 +1291,11 @@ document.addEventListener('DOMContentLoaded', () => {
       options: currentOpts,
       hint: focusHintInput ? focusHintInput.value : (currentReviewQuestion ? currentReviewQuestion.hint : '')
     };
+    if (currentReviewQuestion) {
+      if (currentReviewQuestion.mockName) qObj.mockName = currentReviewQuestion.mockName;
+      if (currentReviewQuestion.mockNumber) qObj.mockNumber = currentReviewQuestion.mockNumber;
+      if (currentReviewQuestion.sourceQuestionNumber) qObj.sourceQuestionNumber = currentReviewQuestion.sourceQuestionNumber;
+    }
     focusJsonEditor.value = JSON.stringify(qObj, null, 2);
   }
 
@@ -1323,7 +1407,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function fetchPendingReviewCount() {
     try {
-      const res = await fetch(`${API_BASE}/api/unreviewed-questions/stats`);
+      const res = await fetch(`${API_BASE}/api/unreviewed-questions/stats?db=${currentDatabase}`);
       if (res.ok) {
         const stats = await res.json();
         const cnt = stats.unreviewedTotal || 0;
@@ -1345,7 +1429,8 @@ document.addEventListener('DOMContentLoaded', () => {
           qbReviewedBadge.textContent = rev;
         }
         if (reviewerQueueCountBadge) {
-          reviewerQueueCountBadge.textContent = `${cnt} Pending Review`;
+          const dbTag = currentDatabase === 'cat_project' ? 'CAT DB' : 'Questify DB';
+          reviewerQueueCountBadge.textContent = `${cnt} Pending Review (${dbTag})`;
         }
         if (gatewayPendingBadge) {
           gatewayPendingBadge.textContent = `${cnt} in Queue`;
@@ -1355,6 +1440,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function initReviewerPortal() {
+    if (reviewerDatabaseSelect) {
+      reviewerDatabaseSelect.value = currentDatabase;
+    }
     currentReviewIndex = 0;
     fetchFocusQuestion(currentReviewIndex);
     fetchPendingReviewCount();
@@ -1363,14 +1451,15 @@ document.addEventListener('DOMContentLoaded', () => {
   async function fetchFocusQuestion(index = 0) {
     const subj = reviewSubjectFilter ? reviewSubjectFilter.value : 'all';
     try {
-      const res = await fetch(`${API_BASE}/api/review-queue/next?index=${index}&subject=${subj}`);
+      const res = await fetch(`${API_BASE}/api/review-queue/next?index=${index}&subject=${subj}&db=${currentDatabase}`);
       if (res.ok) {
         const data = await res.json();
         totalReviewQueueCount = data.total || 0;
         currentReviewIndex = index;
 
         if (reviewerQueueCountBadge) {
-          reviewerQueueCountBadge.textContent = `${totalReviewQueueCount} Pending Review`;
+          const dbTag = currentDatabase === 'cat_project' ? 'CAT DB' : 'Questify DB';
+          reviewerQueueCountBadge.textContent = `${totalReviewQueueCount} Pending Review (${dbTag})`;
         }
         if (navPendingReviewBadge) {
           navPendingReviewBadge.textContent = totalReviewQueueCount;
@@ -1400,6 +1489,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (stepperQuestionIndex) stepperQuestionIndex.textContent = `Question ${idx + 1} of ${total}`;
     if (focusQuestionMetaBadge) focusQuestionMetaBadge.textContent = `${q.subject || 'English'} • ${q.topic || 'General'}`;
+    
+    // Mock / CAT Metadata badge
+    if (focusMockInfoBadge) {
+      if (q.mockName || q.mockNumber || q.sourceQuestionNumber) {
+        const parts = [];
+        if (q.mockName) parts.push(q.mockName);
+        else if (q.mockNumber) parts.push(`Mock ${q.mockNumber}`);
+        if (q.sourceQuestionNumber) parts.push(`Q#${q.sourceQuestionNumber}`);
+        focusMockInfoBadge.textContent = parts.join(' • ');
+        focusMockInfoBadge.classList.remove('hidden');
+        focusMockInfoBadge.style.display = 'inline-flex';
+      } else {
+        focusMockInfoBadge.classList.add('hidden');
+        focusMockInfoBadge.style.display = 'none';
+      }
+    }
+
     if (queueProgressBar) {
       const pct = total > 0 ? Math.round(((idx + 1) / total) * 100) : 0;
       queueProgressBar.style.width = `${pct}%`;
@@ -1408,8 +1514,42 @@ document.addEventListener('DOMContentLoaded', () => {
     if (prevQueueItemBtn) prevQueueItemBtn.disabled = (idx === 0);
     if (skipQueueItemBtn) skipQueueItemBtn.disabled = (idx >= total - 1);
 
-    if (focusSubjectSelect) focusSubjectSelect.value = q.subject || 'English';
-    updateFocusTopics(q.subject || 'English', q.topic, q.subtopic);
+    const rawSubj = q.subject || 'English';
+    if (focusSubjectSelect) {
+      let optFound = false;
+      for (let i = 0; i < focusSubjectSelect.options.length; i++) {
+        if (focusSubjectSelect.options[i].value.toLowerCase() === rawSubj.toLowerCase()) {
+          focusSubjectSelect.selectedIndex = i;
+          optFound = true;
+          break;
+        }
+      }
+      if (!optFound) {
+        const newOpt = document.createElement('option');
+        newOpt.value = rawSubj;
+        newOpt.textContent = rawSubj;
+        newOpt.selected = true;
+        focusSubjectSelect.appendChild(newOpt);
+      }
+    }
+
+    if (reviewSubjectFilter) {
+      let optFound = false;
+      for (let i = 0; i < reviewSubjectFilter.options.length; i++) {
+        if (reviewSubjectFilter.options[i].value.toLowerCase() === rawSubj.toLowerCase()) {
+          optFound = true;
+          break;
+        }
+      }
+      if (!optFound && rawSubj) {
+        const newOpt = document.createElement('option');
+        newOpt.value = rawSubj;
+        newOpt.textContent = rawSubj;
+        reviewSubjectFilter.appendChild(newOpt);
+      }
+    }
+
+    updateFocusTopics(rawSubj, q.topic, q.subtopic);
     if (focusLabelSelect) focusLabelSelect.value = q.label || 'medium';
 
     const cleanQ = normalizeParagraphText(q.questionText || '');
@@ -1430,24 +1570,48 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateFocusTopics(subject, currentTopic, currentSubtopic) {
     const topics = getTopicsForSubject(subject);
     focusTopicSelect.innerHTML = '';
+    let topicFound = false;
     topics.forEach(t => {
       const opt = document.createElement('option');
       opt.value = t;
       opt.textContent = t;
-      if (t === currentTopic) opt.selected = true;
+      if (currentTopic && t.toLowerCase() === currentTopic.toLowerCase()) {
+        opt.selected = true;
+        topicFound = true;
+      }
       focusTopicSelect.appendChild(opt);
     });
+
+    if (currentTopic && !topicFound) {
+      const opt = document.createElement('option');
+      opt.value = currentTopic;
+      opt.textContent = currentTopic;
+      opt.selected = true;
+      focusTopicSelect.appendChild(opt);
+    }
 
     const activeTop = focusTopicSelect.value;
     const subtopics = getSubtopicsForTopic(subject, activeTop);
     focusSubtopicSelect.innerHTML = '';
+    let subtopicFound = false;
     subtopics.forEach(s => {
       const opt = document.createElement('option');
       opt.value = s;
       opt.textContent = s;
-      if (s === currentSubtopic) opt.selected = true;
+      if (currentSubtopic && s.toLowerCase() === currentSubtopic.toLowerCase()) {
+        opt.selected = true;
+        subtopicFound = true;
+      }
       focusSubtopicSelect.appendChild(opt);
     });
+
+    if (currentSubtopic && !subtopicFound) {
+      const opt = document.createElement('option');
+      opt.value = currentSubtopic;
+      opt.textContent = currentSubtopic;
+      opt.selected = true;
+      focusSubtopicSelect.appendChild(opt);
+    }
   }
 
   if (focusSubjectSelect) {
@@ -1639,13 +1803,13 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       try {
-        const res = await fetch(`${API_BASE}/api/review-queue/${currentReviewQuestion.id}`, {
+        const res = await fetch(`${API_BASE}/api/review-queue/${currentReviewQuestion.id}?db=${currentDatabase}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
         if (res.ok) {
-          alert('Draft updated in staging queue.');
+          alert(`Draft updated in staging queue (${currentDatabase}).`);
         } else {
           alert('Error saving draft');
         }
@@ -1659,10 +1823,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (focusRejectQuestionBtn) {
     focusRejectQuestionBtn.addEventListener('click', async () => {
       if (!currentReviewQuestion || !currentReviewQuestion.id) return;
-      if (!confirm('Are you sure you want to reject and permanently delete this question from the review queue?')) return;
+      if (!confirm(`Are you sure you want to reject and permanently delete this question from the review queue in '${currentDatabase}'?`)) return;
 
       try {
-        const res = await fetch(`${API_BASE}/api/review-queue/${currentReviewQuestion.id}`, {
+        const res = await fetch(`${API_BASE}/api/review-queue/${currentReviewQuestion.id}?db=${currentDatabase}`, {
           method: 'DELETE'
         });
         if (res.ok) {
@@ -1704,7 +1868,7 @@ document.addEventListener('DOMContentLoaded', () => {
       focusApproveQuestionBtn.disabled = true;
 
       try {
-        const res = await fetch(`${API_BASE}/api/review-queue/${currentReviewQuestion.id}/approve`, {
+        const res = await fetch(`${API_BASE}/api/review-queue/${currentReviewQuestion.id}/approve?db=${currentDatabase}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -1746,7 +1910,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (reviewQueueListView) reviewQueueListView.classList.remove('hidden');
       if (reviewFocusView) reviewFocusView.classList.add('hidden');
       if (queueNavPrevNextBtns) queueNavPrevNextBtns.style.display = 'none';
-      if (stepperQuestionIndex) stepperQuestionIndex.textContent = 'Queue List Overview';
+      if (stepperQuestionIndex) stepperQuestionIndex.textContent = `Queue List Overview (${currentDatabase})`;
       fetchQueueList();
     });
   }
@@ -1774,11 +1938,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function fetchQueueList() {
     if (!queueListContainer) return;
-    queueListContainer.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner spin-icon"></i> Loading pending questions...</div>';
+    queueListContainer.innerHTML = `<div class="empty-state"><i class="fa-solid fa-spinner spin-icon"></i> Loading pending questions from ${currentDatabase}...</div>`;
     
     const subj = reviewSubjectFilter ? reviewSubjectFilter.value : 'all';
     try {
-      const res = await fetch(`${API_BASE}/api/unreviewed-questions?subject=${subj}`);
+      const res = await fetch(`${API_BASE}/api/unreviewed-questions?subject=${subj}&db=${currentDatabase}`);
       if (res.ok) {
         const data = await res.json();
         renderQueueList(data.questions || []);
@@ -1791,7 +1955,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderQueueList(questions) {
     if (!queueListContainer) return;
     if (questions.length === 0) {
-      queueListContainer.innerHTML = '<div class="empty-state">No pending questions in queue.</div>';
+      queueListContainer.innerHTML = `<div class="empty-state">No pending questions in queue for database '${currentDatabase}'.</div>`;
       return;
     }
 
@@ -1806,10 +1970,12 @@ document.addEventListener('DOMContentLoaded', () => {
     filtered.forEach((q, idx) => {
       const card = document.createElement('div');
       card.className = 'question-card';
+      const mockMeta = q.mockName ? `<span class="badge" style="background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); font-size: 0.75rem;">${q.mockName}</span>` : '';
       card.innerHTML = `
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
           <span class="question-index"><i class="fa-solid fa-clipboard-question"></i> Queue Item #${idx + 1}</span>
           <div class="card-meta-inputs" style="gap: 0.5rem; align-items: center;">
+            ${mockMeta}
             <span class="badge" style="background: var(--bg-input); border: 1px solid var(--border-color); font-size: 0.75rem;">${q.subject || 'English'}</span>
             <span class="badge" style="background: var(--bg-input); border: 1px solid var(--border-color); font-size: 0.75rem;">${q.topic || 'General'}</span>
             <button class="btn btn-sm btn-primary jump-to-review-btn" data-qidx="${idx}">
@@ -1845,6 +2011,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let unreviewedBankData = [];
   let reviewedBankData = [];
 
+  const qbDatabaseSelect = document.getElementById('qbDatabaseSelect');
   const qbUnreviewedTabBtn = document.getElementById('qbUnreviewedTabBtn');
   const qbReviewedTabBtn = document.getElementById('qbReviewedTabBtn');
   const qbUnreviewedBadge = document.getElementById('qbUnreviewedBadge');
@@ -1861,6 +2028,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const refreshReviewedBankBtn = document.getElementById('refreshReviewedBankBtn');
   const exportReviewedBankJsonBtn = document.getElementById('exportReviewedBankJsonBtn');
 
+  if (qbDatabaseSelect) {
+    qbDatabaseSelect.value = currentDatabase;
+    qbDatabaseSelect.addEventListener('change', () => {
+      currentDatabase = qbDatabaseSelect.value;
+      localStorage.setItem('questify_current_db', currentDatabase);
+      if (reviewerDatabaseSelect) reviewerDatabaseSelect.value = currentDatabase;
+      setBankTab(currentBankTab);
+    });
+  }
+
   function setBankTab(tab) {
     currentBankTab = tab;
     if (qbUnreviewedTabBtn && qbReviewedTabBtn) {
@@ -1868,14 +2045,15 @@ document.addEventListener('DOMContentLoaded', () => {
       qbReviewedTabBtn.classList.toggle('active', tab === 'reviewed');
     }
 
+    const dbLabel = currentDatabase === 'cat_project' ? 'cat_project' : 'questify';
     if (qbHeaderTitle && qbHeaderDesc) {
       if (tab === 'unreviewed') {
-        qbHeaderTitle.innerHTML = `<i class="fa-solid fa-clock-rotate-left" style="color: #f59e0b;"></i> Unreviewed Questions (Staging DB) <span class="count-badge" id="reviewedBankTotalBadge">${unreviewedBankData.length} Questions</span>`;
-        qbHeaderDesc.innerHTML = 'Raw questions parsed and staged in <code>questify.unreviewed_questions</code> waiting for Guy B review.';
+        qbHeaderTitle.innerHTML = `<i class="fa-solid fa-clock-rotate-left" style="color: #f59e0b;"></i> Unreviewed Questions (Staging: ${dbLabel}) <span class="count-badge" id="reviewedBankTotalBadge">${unreviewedBankData.length} Questions</span>`;
+        qbHeaderDesc.innerHTML = `Raw questions parsed and staged in <code>${dbLabel}.unreviewed_questions</code> waiting for Guy B review.`;
         if (qbResetUsedBtn) qbResetUsedBtn.classList.add('hidden');
       } else {
-        qbHeaderTitle.innerHTML = `<i class="fa-solid fa-database" style="color: #6366f1;"></i> Reviewed Question Bank (Production DB) <span class="count-badge" id="reviewedBankTotalBadge">${reviewedBankData.length} Vetted Questions</span>`;
-        qbHeaderDesc.innerHTML = 'Production repository of verified, vetted questions granted by Guy B in <code>questify.reviewed_questions</code>.';
+        qbHeaderTitle.innerHTML = `<i class="fa-solid fa-database" style="color: #6366f1;"></i> Reviewed Question Bank (Production: ${dbLabel}) <span class="count-badge" id="reviewedBankTotalBadge">${reviewedBankData.length} Vetted Questions</span>`;
+        qbHeaderDesc.innerHTML = `Production repository of verified, vetted questions granted by Guy B in <code>${dbLabel}.reviewed_questions</code>.`;
         if (qbResetUsedBtn) qbResetUsedBtn.classList.remove('hidden');
       }
     }
@@ -1888,7 +2066,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function fetchBankStats() {
     try {
-      const res = await fetch(`${API_BASE}/api/unreviewed-questions/stats`);
+      const res = await fetch(`${API_BASE}/api/unreviewed-questions/stats?db=${currentDatabase}`);
       if (res.ok) {
         const stats = await res.json();
         const unrev = stats.unreviewedTotal || 0;
@@ -1909,9 +2087,12 @@ document.addEventListener('DOMContentLoaded', () => {
   async function fetchBankQuestions() {
     if (!reviewedBankList) return;
     const isUnrev = (currentBankTab === 'unreviewed');
-    const endpoint = isUnrev ? `${API_BASE}/api/unreviewed-questions` : `${API_BASE}/api/reviewed-questions`;
+    const endpoint = isUnrev 
+      ? `${API_BASE}/api/unreviewed-questions?db=${currentDatabase}` 
+      : `${API_BASE}/api/reviewed-questions?db=${currentDatabase}`;
 
-    reviewedBankList.innerHTML = `<div class="empty-state"><i class="fa-solid fa-spinner spin-icon"></i> Loading ${isUnrev ? 'Unreviewed Staging Questions' : 'Reviewed Question Bank'}...</div>`;
+    const dbLabel = currentDatabase === 'cat_project' ? 'CAT Project DB' : 'Questify DB';
+    reviewedBankList.innerHTML = `<div class="empty-state"><i class="fa-solid fa-spinner spin-icon"></i> Loading ${isUnrev ? 'Unreviewed Staging Questions' : 'Reviewed Question Bank'} from ${dbLabel}...</div>`;
 
     fetchBankStats();
 
@@ -1935,9 +2116,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!reviewedBankList) return;
     const isUnrev = (currentBankTab === 'unreviewed');
     const rawData = isUnrev ? unreviewedBankData : reviewedBankData;
+    const dbLabel = currentDatabase === 'cat_project' ? 'cat_project' : 'questify';
 
     if (rawData.length === 0) {
-      reviewedBankList.innerHTML = `<div class="empty-state">No ${isUnrev ? 'unreviewed' : 'reviewed'} questions found in MongoDB ${isUnrev ? 'questify.unreviewed_questions' : 'questify.reviewed_questions'}.</div>`;
+      reviewedBankList.innerHTML = `<div class="empty-state">No ${isUnrev ? 'unreviewed' : 'reviewed'} questions found in MongoDB <code>${dbLabel}.${isUnrev ? 'unreviewed_questions' : 'reviewed_questions'}</code>.</div>`;
       if (reviewedBankTotalBadge) reviewedBankTotalBadge.textContent = `0 ${isUnrev ? 'Questions' : 'Vetted Questions'}`;
       return;
     }
@@ -1986,6 +2168,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const qTextClean = normalizeParagraphText(q.questionText || '');
       const qHintClean = normalizeParagraphText(q.hint || '');
+      const mockInfo = q.mockName ? `<span class="badge" style="background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); font-size: 0.72rem;">${escapeHtml(q.mockName)}</span>` : '';
 
       card.innerHTML = `
         <div class="card-header qb-card-toggle">
@@ -1998,6 +2181,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </span>
           </div>
           <div class="card-meta-inputs" style="gap: 0.4rem; align-items: center;">
+            ${mockInfo}
             ${isUnrev 
               ? `<span class="badge" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.72rem; color: #f59e0b; font-weight: 700;">UNREVIEWED</span>` 
               : `<span class="badge" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; color: #10b981; font-weight: 700;">REVIEWED</span>`}

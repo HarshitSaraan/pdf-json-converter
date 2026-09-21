@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from pdf_parser import parse_pdf_questions, parse_raw_text_questions
 from gemini_service import generate_ai_hint
-from database import connect_to_mongo, close_mongo_connection, get_db, get_unreviewed_collection, get_reviewed_collection
+from database import connect_to_mongo, close_mongo_connection, get_db, get_unreviewed_collection, get_reviewed_collection, list_available_databases
 from bson.objectid import ObjectId
 import random
 
@@ -229,15 +229,25 @@ async def download_json_endpoint(request: Request):
     return Response(content=json_bytes, media_type="application/json", headers=headers)
 
 # ==========================================
+# DATABASE DISCOVERY ENDPOINT
+# ==========================================
+
+@app.get("/api/databases")
+async def get_databases_endpoint():
+    """Returns list of available databases with their unreviewed/reviewed question counts."""
+    dbs = await list_available_databases()
+    return {"status": "success", "databases": dbs}
+
+# ==========================================
 # GUY A: UNREVIEWED STAGING DATABASE ENDPOINTS
 # ==========================================
 
 @app.post("/api/unreviewed-questions/bulk")
-async def add_unreviewed_questions_bulk(request: Request):
+async def add_unreviewed_questions_bulk(request: Request, db: str = "questify"):
     """Guy A (Parser) sends parsed questions to the unreviewed staging queue."""
-    col = get_unreviewed_collection()
+    col = get_unreviewed_collection(db)
     if col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
+        raise HTTPException(status_code=500, detail=f"Database '{db}' not connected")
     data = await request.json()
     questions = data.get("questions", [])
     if not questions:
@@ -260,16 +270,25 @@ async def add_unreviewed_questions_bulk(request: Request):
     result = await col.insert_many(docs_to_insert)
     return {
         "status": "success",
-        "message": f"{len(result.inserted_ids)} questions successfully sent to Review Queue (Staging DB)",
-        "count": len(result.inserted_ids)
+        "message": f"{len(result.inserted_ids)} questions successfully sent to Review Queue in '{db}'",
+        "count": len(result.inserted_ids),
+        "db": db
     }
 
 @app.get("/api/unreviewed-questions")
-async def get_unreviewed_questions(subject: str = None, topic: str = None, difficulty: str = None, search: str = None, limit: int = 500, skip: int = 0):
-    """Fetch unreviewed questions from the staging queue."""
-    col = get_unreviewed_collection()
+async def get_unreviewed_questions(
+    subject: str = None, 
+    topic: str = None, 
+    difficulty: str = None, 
+    search: str = None, 
+    limit: int = 500, 
+    skip: int = 0,
+    db: str = "questify"
+):
+    """Fetch unreviewed questions from the staging queue of the specified database."""
+    col = get_unreviewed_collection(db)
     if col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
+        raise HTTPException(status_code=500, detail=f"Database '{db}' not connected")
     
     query = {}
     if subject and subject.strip() and subject.strip().lower() != "all":
@@ -291,35 +310,38 @@ async def get_unreviewed_questions(subject: str = None, topic: str = None, diffi
 
     return {
         "status": "success",
+        "db": db,
         "total": total_count,
         "count": len(questions),
         "questions": questions
     }
 
 @app.get("/api/unreviewed-questions/stats")
-async def get_unreviewed_stats():
-    """Returns counts and statistics of unreviewed questions waiting for Guy B."""
-    col = get_unreviewed_collection()
+async def get_unreviewed_stats(db: str = "questify"):
+    """Returns counts and statistics of unreviewed questions for Guy B in the specified database."""
+    col = get_unreviewed_collection(db)
     if col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
+        raise HTTPException(status_code=500, detail=f"Database '{db}' not connected")
     
     total = await col.count_documents({})
-    english_cnt = await col.count_documents({"subject": {"$regex": "^english$", "$options": "i"}})
-    quants_cnt = await col.count_documents({"subject": {"$regex": "^quants$", "$options": "i"}})
-    lrdi_cnt = await col.count_documents({"subject": {"$regex": "^(lrdi|logical reasoning|data interpretation)$", "$options": "i"}})
+    
+    # Dynamic aggregation by subject
+    pipeline = [{"$group": {"_id": "$subject", "count": {"$sum": 1}}}]
+    cursor = col.aggregate(pipeline)
+    by_subject = {}
+    async for doc in cursor:
+        s_name = doc.get("_id") or "General"
+        by_subject[str(s_name)] = doc.get("count", 0)
 
-    reviewed_col = get_reviewed_collection()
+    reviewed_col = get_reviewed_collection(db)
     reviewed_total = await reviewed_col.count_documents({}) if reviewed_col is not None else 0
 
     return {
         "status": "success",
+        "db": db,
         "unreviewedTotal": total,
         "reviewedTotal": reviewed_total,
-        "bySubject": {
-            "English": english_cnt,
-            "Quants": quants_cnt,
-            "LRDI": lrdi_cnt
-        }
+        "bySubject": by_subject
     }
 
 # ==========================================
@@ -327,11 +349,11 @@ async def get_unreviewed_stats():
 # ==========================================
 
 @app.get("/api/review-queue/next")
-async def get_next_review_question(index: int = 0, subject: str = None):
-    """Fetch a single question by queue index for focused one-by-one review."""
-    col = get_unreviewed_collection()
+async def get_next_review_question(index: int = 0, subject: str = None, db: str = "questify"):
+    """Fetch a single question by queue index for focused one-by-one review in the specified database."""
+    col = get_unreviewed_collection(db)
     if col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
+        raise HTTPException(status_code=500, detail=f"Database '{db}' not connected")
 
     query = {}
     if subject and subject.strip() and subject.strip().lower() != "all":
@@ -339,7 +361,7 @@ async def get_next_review_question(index: int = 0, subject: str = None):
 
     total = await col.count_documents(query)
     if total == 0 or index >= total:
-        return {"status": "empty", "total": total, "question": None}
+        return {"status": "empty", "db": db, "total": total, "question": None}
 
     cursor = col.find(query).sort("_id", 1).skip(index).limit(1)
     doc = None
@@ -348,23 +370,24 @@ async def get_next_review_question(index: int = 0, subject: str = None):
         break
 
     if not doc:
-        return {"status": "empty", "total": total, "question": None}
+        return {"status": "empty", "db": db, "total": total, "question": None}
 
     doc["id"] = str(doc["_id"])
     del doc["_id"]
     return {
         "status": "success",
+        "db": db,
         "total": total,
         "currentIndex": index,
         "question": doc
     }
 
 @app.put("/api/review-queue/{question_id}")
-async def update_unreviewed_draft(question_id: str, request: Request):
+async def update_unreviewed_draft(question_id: str, request: Request, db: str = "questify"):
     """Saves draft edits to an unreviewed question while in queue."""
-    col = get_unreviewed_collection()
+    col = get_unreviewed_collection(db)
     if col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
+        raise HTTPException(status_code=500, detail=f"Database '{db}' not connected")
     
     updated_data = await request.json()
     if "id" in updated_data:
@@ -376,36 +399,36 @@ async def update_unreviewed_draft(question_id: str, request: Request):
         res = await col.update_one({"_id": ObjectId(question_id)}, {"$set": updated_data})
         if res.matched_count == 0:
             raise HTTPException(status_code=404, detail="Question not found in staging queue")
-        return {"status": "success", "message": "Draft updated successfully"}
+        return {"status": "success", "db": db, "message": "Draft updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.delete("/api/review-queue/{question_id}")
-async def reject_unreviewed_question(question_id: str):
+async def reject_unreviewed_question(question_id: str, db: str = "questify"):
     """Guy B rejects and permanently deletes an invalid question from the staging queue."""
-    col = get_unreviewed_collection()
+    col = get_unreviewed_collection(db)
     if col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
+        raise HTTPException(status_code=500, detail=f"Database '{db}' not connected")
     try:
         res = await col.delete_one({"_id": ObjectId(question_id)})
         if res.deleted_count == 1:
-            return {"status": "success", "message": "Question rejected and removed from queue"}
+            return {"status": "success", "db": db, "message": "Question rejected and removed from queue"}
         else:
             raise HTTPException(status_code=404, detail="Question not found in staging queue")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.put("/api/review-queue/{question_id}/approve")
-async def approve_and_push_question(question_id: str, request: Request):
+async def approve_and_push_question(question_id: str, request: Request, db: str = "questify"):
     """
     Guy B grants and approves the question.
-    Saves reviewer's edits, inserts into reviewed_questions database,
+    Saves reviewer's edits, inserts into reviewed_questions collection of the chosen database,
     and removes it from unreviewed_questions staging queue.
     """
-    unreviewed_col = get_unreviewed_collection()
-    reviewed_col = get_reviewed_collection()
+    unreviewed_col = get_unreviewed_collection(db)
+    reviewed_col = get_reviewed_collection(db)
     if unreviewed_col is None or reviewed_col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
+        raise HTTPException(status_code=500, detail=f"Database '{db}' not connected")
 
     payload = await request.json()
     import datetime
@@ -447,7 +470,8 @@ async def approve_and_push_question(question_id: str, request: Request):
 
     return {
         "status": "success",
-        "message": "Question approved and pushed to Reviewed Question Bank!",
+        "db": db,
+        "message": f"Question approved and pushed to Reviewed Question Bank in '{db}'!",
         "reviewedId": str(insert_res.inserted_id),
         "remainingUnreviewed": remaining_unreviewed,
         "question": doc_to_save
@@ -459,11 +483,17 @@ async def approve_and_push_question(question_id: str, request: Request):
 
 @app.get("/api/reviewed-questions")
 @app.get("/api/questions")
-async def get_reviewed_questions(subject: str = None, topic: str = None, difficulty: str = None, search: str = None):
-    """Fetch all vetted questions from the Reviewed Question Bank."""
-    col = get_reviewed_collection()
+async def get_reviewed_questions(
+    subject: str = None, 
+    topic: str = None, 
+    difficulty: str = None, 
+    search: str = None,
+    db: str = "questify"
+):
+    """Fetch all vetted questions from the Reviewed Question Bank of the specified database."""
+    col = get_reviewed_collection(db)
     if col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
+        raise HTTPException(status_code=500, detail=f"Database '{db}' not connected")
     
     query = {}
     if subject and subject.strip() and subject.strip().lower() != "all":
@@ -484,16 +514,17 @@ async def get_reviewed_questions(subject: str = None, topic: str = None, difficu
 
     return {
         "status": "success",
+        "db": db,
         "count": len(questions),
         "questions": questions
     }
 
 @app.post("/api/reviewed-questions")
-async def add_reviewed_question_direct(request: Request):
+async def add_reviewed_question_direct(request: Request, db: str = "questify"):
     """Directly add a question to the Reviewed Question Bank."""
-    col = get_reviewed_collection()
+    col = get_reviewed_collection(db)
     if col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
+        raise HTTPException(status_code=500, detail=f"Database '{db}' not connected")
     question_data = await request.json()
     if "_id" in question_data:
         del question_data["_id"]
@@ -504,14 +535,14 @@ async def add_reviewed_question_direct(request: Request):
     question_data["id"] = str(result.inserted_id)
     if "_id" in question_data:
         del question_data["_id"]
-    return {"status": "success", "message": "Question added to Reviewed Bank", "question": question_data}
+    return {"status": "success", "db": db, "message": f"Question added to Reviewed Bank in '{db}'", "question": question_data}
 
 @app.put("/api/reviewed-questions/{question_id}")
-async def update_reviewed_question(question_id: str, request: Request):
+async def update_reviewed_question(question_id: str, request: Request, db: str = "questify"):
     """Update a question in the Reviewed Question Bank."""
-    col = get_reviewed_collection()
+    col = get_reviewed_collection(db)
     if col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
+        raise HTTPException(status_code=500, detail=f"Database '{db}' not connected")
     updated_data = await request.json()
     if "id" in updated_data:
         del updated_data["id"]
@@ -522,21 +553,21 @@ async def update_reviewed_question(question_id: str, request: Request):
         res = await col.update_one({"_id": ObjectId(question_id)}, {"$set": updated_data})
         if res.matched_count == 0:
             raise HTTPException(status_code=404, detail="Question not found in Reviewed Bank")
-        return {"status": "success", "message": "Reviewed question updated successfully"}
+        return {"status": "success", "db": db, "message": "Reviewed question updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.delete("/api/reviewed-questions/{question_id}")
 @app.delete("/api/questions/{question_id}")
-async def delete_reviewed_question(question_id: str):
+async def delete_reviewed_question(question_id: str, db: str = "questify"):
     """Delete a question from the Reviewed Question Bank by ID."""
-    col = get_reviewed_collection()
+    col = get_reviewed_collection(db)
     if col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
+        raise HTTPException(status_code=500, detail=f"Database '{db}' not connected")
     try:
         res = await col.delete_one({"_id": ObjectId(question_id)})
         if res.deleted_count == 1:
-            return {"status": "success", "message": "Question deleted from Reviewed Bank"}
+            return {"status": "success", "db": db, "message": "Question deleted from Reviewed Bank"}
         else:
             raise HTTPException(status_code=404, detail="Question not found in Reviewed Bank")
     except Exception as e:
@@ -544,29 +575,30 @@ async def delete_reviewed_question(question_id: str):
 
 @app.post("/api/reviewed-questions/reset-used")
 @app.post("/api/questions/reset-used")
-async def reset_used_reviewed_questions():
+async def reset_used_reviewed_questions(db: str = "questify"):
     """Resets the isUsed status back to false for all questions in Reviewed Question Bank."""
-    col = get_reviewed_collection()
+    col = get_reviewed_collection(db)
     if col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
+        raise HTTPException(status_code=500, detail=f"Database '{db}' not connected")
     result = await col.update_many({}, {"$set": {"isUsed": False}})
-    return {"status": "success", "message": f"Reset {result.modified_count} reviewed questions back to unused status"}
+    return {"status": "success", "db": db, "message": f"Reset {result.modified_count} reviewed questions in '{db}' back to unused status"}
 
 # ==========================================
 # MOCK / SECTION TEST GENERATOR (FROM REVIEWED DB)
 # ==========================================
 
 @app.post("/api/mock-tests/generate")
-async def generate_mock_test(request: Request):
+async def generate_mock_test(request: Request, db: str = "questify"):
     """
     Generates a Mock or Sectional Test paper STRICTLY from the Reviewed Question Bank (reviewed_questions).
     Applies subject quotas and difficulty percentages (easy/medium/hard), tracking isUsed flags.
     """
-    col = get_reviewed_collection()
-    if col is None:
-        raise HTTPException(status_code=500, detail="Database not connected")
-    
     payload = await request.json()
+    target_db = payload.get("db", db)
+    col = get_reviewed_collection(target_db)
+    if col is None:
+        raise HTTPException(status_code=500, detail=f"Database '{target_db}' not connected")
+    
     subject_counts = payload.get("subjectCounts", {}) # e.g. {"English": 10, "Quants": 10, "LRDI": 5}
     difficulty = payload.get("difficulty", {"easy": 30, "medium": 50, "hard": 20})
     exclude_used = payload.get("excludeUsed", True)
@@ -656,6 +688,7 @@ async def generate_mock_test(request: Request):
 
     return {
         "status": "success",
+        "db": target_db,
         "count": len(selected_questions),
         "questions": selected_questions
     }
