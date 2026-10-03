@@ -355,6 +355,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function clearUserProfile() {
     localStorage.removeItem('google_user_session');
+    localStorage.removeItem('questify_user_role');
+    hideRoleGateway();
     if (userProfileBox) userProfileBox.classList.add('hidden');
     if (googleSignInContainer) googleSignInContainer.classList.remove('hidden');
     if (mainAppContainer) mainAppContainer.classList.add('hidden');
@@ -435,6 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function initGoogleAuth() {
+    hideRoleGateway();
     const savedSession = localStorage.getItem('google_user_session');
     if (savedSession) {
       try {
@@ -845,6 +848,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Role Gateway Screen & Navigation Helpers
   function showRoleGateway() {
+    const sessionStr = localStorage.getItem('google_user_session');
+    if (!sessionStr) {
+      hideRoleGateway();
+      return;
+    }
+    try {
+      const sess = JSON.parse(sessionStr);
+      if (sess.role === 'reviewer') {
+        hideRoleGateway();
+        return;
+      }
+    } catch(e) {
+      hideRoleGateway();
+      return;
+    }
     if (roleGatewayScreen) roleGatewayScreen.classList.remove('hidden');
     fetchPendingReviewCount();
   }

@@ -72,8 +72,8 @@
     </div>
   </header>
 
-  <!-- Role Selection Gateway (Asks user whether they are Parser or Reviewer) -->
-  <div id="roleGatewayScreen" class="role-gateway-overlay">
+  <!-- Role Selection Gateway (Asks admin whether they are Parser or Reviewer) -->
+  <div id="roleGatewayScreen" class="role-gateway-overlay hidden">
     <div class="role-gateway-modal" style="max-width: 680px; padding: 2.5rem 2rem;">
       <h1 class="role-modal-title" style="font-size: 1.85rem; margin-bottom: 0.4rem;">Select Workspace</h1>
       <p class="role-modal-subtitle" style="margin-bottom: 1.75rem; color: var(--text-secondary);">Who is logging in?</p>
@@ -376,7 +376,7 @@
   </div>
 
   <!-- Mandatory Auth Gate / Lock Screen (Displayed when not signed in) -->
-  <div id="authLockScreen" class="auth-lock-screen hidden">
+  <div id="authLockScreen" class="auth-lock-screen">
     <div class="lock-card">
       <div class="lock-icon-badge">
         <i class="fa-solid fa-shield-halved"></i>
