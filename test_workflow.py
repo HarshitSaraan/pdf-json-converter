@@ -7,6 +7,16 @@ async def run_full_test():
     print("--- Starting 2-Role Collaborative Workflow Verification ---")
 
     async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Step 0: Authenticate as Admin
+        print("[0] Authenticating as Admin (harshitsaraan@gmail.com)...")
+        auth_res = await client.post("/api/auth/verify-google", json={"email": "harshitsaraan@gmail.com", "credential": "local_dev_bypass"})
+        assert auth_res.status_code == 200, f"Auth failed: {auth_res.text}"
+        auth_data = auth_res.json()
+        assert auth_data["isAuthorized"] is True
+        admin_token = auth_data["token"]
+        client.headers["Authorization"] = f"Bearer {admin_token}"
+        print(f"    -> Admin authenticated successfully (Role: {auth_data['role']}, DBs: {auth_data['allowed_dbs']})")
+
         # Step 1: Guy A parses questions and pushes to unreviewed_questions (staging DB)
         sample_questions = [
             {
@@ -110,7 +120,59 @@ async def run_full_test():
         assert mock_res["count"] >= 1
         print(f"    -> Sampled question text: {mock_res['questions'][0]['questionText']}")
 
-        print("\n[SUCCESS] All 7 verification steps PASSED successfully!")
+        # Step 8: Test Reviewer RBAC & Database Isolation
+        print("\n[8] Testing Reviewer RBAC & Database Isolation...")
+        # 8a. Admin assigns a reviewer to CAT Project DB only
+        reviewer_email = "cat_reviewer_test@preproute.com"
+        print(f"    -> Assigning reviewer '{reviewer_email}' to 'cat_project' only...")
+        assign_res = await client.post("/api/admin/users", json={
+            "email": reviewer_email,
+            "role": "reviewer",
+            "allowed_dbs": ["cat_project"],
+            "name": "CAT Reviewer"
+        })
+        assert assign_res.status_code == 200
+        print(f"    -> Admin saved user successfully: {assign_res.json()['message']}")
+
+        # 8b. Authenticate as the reviewer
+        rev_auth = await client.post("/api/auth/verify-google", json={"email": reviewer_email, "credential": "local_dev_bypass"})
+        assert rev_auth.status_code == 200
+        rev_token = rev_auth.json()["token"]
+        rev_client = httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+        rev_client.headers["Authorization"] = f"Bearer {rev_token}"
+
+        # 8c. Verify reviewer can access their assigned DB (cat_project)
+        allowed_res = await rev_client.get("/api/unreviewed-questions/stats?db=cat_project")
+        assert allowed_res.status_code == 200, f"Expected 200 for assigned DB, got {allowed_res.status_code}: {allowed_res.text}"
+        print("    -> [PASS] Reviewer successfully accessed their assigned DB ('cat_project')")
+
+        # 8d. Verify reviewer CANNOT access other DBs (questify) -> 403 Forbidden
+        denied_db_res = await rev_client.get("/api/unreviewed-questions/stats?db=questify")
+        assert denied_db_res.status_code == 403, f"Expected 403 for unauthorized DB, got {denied_db_res.status_code}"
+        print(f"    -> [PASS] Access to unassigned DB blocked: {denied_db_res.json()['detail']}")
+
+        # 8e. Verify reviewer CANNOT access Mock Test Generator -> 403 Forbidden
+        denied_mock_res = await rev_client.post("/api/mock-tests/generate", json=mock_payload)
+        assert denied_mock_res.status_code == 403
+        print(f"    -> [PASS] Reviewer blocked from Mock Generator: {denied_mock_res.json()['detail']}")
+
+        # 8f. Verify reviewer CANNOT access Question Parser -> 403 Forbidden
+        denied_parse_res = await rev_client.post("/api/parse-text", json={"text": "Sample text"})
+        assert denied_parse_res.status_code == 403
+        print(f"    -> [PASS] Reviewer blocked from Question Parser: {denied_parse_res.json()['detail']}")
+
+        # 8g. Verify /api/databases returns ONLY their assigned DB ('cat_project')
+        dbs_res = await rev_client.get("/api/databases")
+        assert dbs_res.status_code == 200
+        ret_dbs = [d["id"] for d in dbs_res.json()["databases"]]
+        assert ret_dbs == ["cat_project"], f"Expected only ['cat_project'], got {ret_dbs}"
+        print(f"    -> [PASS] /api/databases dynamically scoped to assigned DB only: {ret_dbs}")
+
+        # Clean up test user
+        await client.delete(f"/api/admin/users/{reviewer_email}")
+        print("    -> Cleaned up test reviewer successfully.")
+
+        print("\n[SUCCESS] All 8 verification steps (including RBAC isolation) PASSED successfully!")
 
 if __name__ == "__main__":
     asyncio.run(run_full_test())

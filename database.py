@@ -88,3 +88,113 @@ async def list_available_databases():
                 "reviewedCount": 0
             })
     return results
+
+DEFAULT_USER_PERMISSIONS = {
+    "cnandini828@gmail.com": {"role": "admin", "allowed_dbs": ["*"], "name": "Nandini"},
+    "pratapsinghsusmit@gmail.com": {"role": "admin", "allowed_dbs": ["*"], "name": "Susmit"},
+    "thepreproute@gmail.com": {"role": "admin", "allowed_dbs": ["*"], "name": "The Prep Route"},
+    "harshitsaraan@gmail.com": {"role": "admin", "allowed_dbs": ["*"], "name": "Harshit"},
+}
+
+def get_user_permissions_collection():
+    """Returns the user permissions collection in questify database."""
+    database = get_db(DEFAULT_DB_NAME)
+    if database is not None:
+        return database.user_permissions
+    return None
+
+async def get_user_permission(email: str):
+    """Fetches user permissions from MongoDB, fallback to DEFAULT_USER_PERMISSIONS."""
+    if not email:
+        return None
+    email_clean = email.strip().lower()
+    col = get_user_permissions_collection()
+    if col is not None:
+        try:
+            doc = await col.find_one({"email": email_clean})
+            if doc:
+                return {
+                    "email": doc["email"],
+                    "name": doc.get("name", email_clean.split("@")[0]),
+                    "role": doc.get("role", "reviewer"),
+                    "allowed_dbs": doc.get("allowed_dbs", []),
+                }
+        except Exception as e:
+            print(f"Error fetching user permission for {email_clean}: {e}")
+
+    # Fallback to in-memory defaults
+    if email_clean in DEFAULT_USER_PERMISSIONS:
+        entry = DEFAULT_USER_PERMISSIONS[email_clean]
+        return {
+            "email": email_clean,
+            "name": entry.get("name", "Admin"),
+            "role": entry.get("role", "admin"),
+            "allowed_dbs": entry.get("allowed_dbs", ["*"]),
+        }
+    return None
+
+async def set_user_permission(email: str, role: str, allowed_dbs: list, name: str = ""):
+    """Upserts a user's permissions and assigned databases in MongoDB."""
+    import datetime
+    email_clean = email.strip().lower()
+    col = get_user_permissions_collection()
+    if col is None:
+        raise RuntimeError("Database connection not available")
+
+    update_data = {
+        "email": email_clean,
+        "role": role.strip().lower(),
+        "allowed_dbs": allowed_dbs,
+        "name": name.strip() if name else email_clean.split("@")[0],
+        "updatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    }
+    await col.update_one(
+        {"email": email_clean},
+        {"$set": update_data, "$setOnInsert": {"createdAt": datetime.datetime.now(datetime.timezone.utc).isoformat()}},
+        upsert=True
+    )
+    return update_data
+
+async def delete_user_permission(email: str):
+    """Deletes a user from MongoDB permissions collection."""
+    email_clean = email.strip().lower()
+    if email_clean in DEFAULT_USER_PERMISSIONS:
+        raise ValueError("Cannot delete built-in administrator account.")
+    col = get_user_permissions_collection()
+    if col is None:
+        raise RuntimeError("Database connection not available")
+    await col.delete_one({"email": email_clean})
+    return True
+
+async def list_all_user_permissions():
+    """Lists all configured users from MongoDB combined with default admins."""
+    col = get_user_permissions_collection()
+    users_by_email = {}
+
+    # Pre-populate defaults
+    for em, d in DEFAULT_USER_PERMISSIONS.items():
+        users_by_email[em] = {
+            "email": em,
+            "name": d.get("name", "Admin"),
+            "role": d.get("role", "admin"),
+            "allowed_dbs": d.get("allowed_dbs", ["*"]),
+            "isDefault": True
+        }
+
+    if col is not None:
+        try:
+            cursor = col.find({})
+            async for doc in cursor:
+                em = doc.get("email", "").strip().lower()
+                if em:
+                    users_by_email[em] = {
+                        "email": em,
+                        "name": doc.get("name", em.split("@")[0]),
+                        "role": doc.get("role", "reviewer"),
+                        "allowed_dbs": doc.get("allowed_dbs", []),
+                        "isDefault": em in DEFAULT_USER_PERMISSIONS
+                    }
+        except Exception as e:
+            print(f"Error listing user permissions: {e}")
+
+    return list(users_by_email.values())

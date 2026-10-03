@@ -48,6 +48,9 @@
         <button id="aiSettingsBtn" class="btn btn-outline btn-sm" title="Configure AI API Key (Google Gemini)">
           <i class="fa-solid fa-key"></i> AI Settings
         </button>
+        <button id="adminUsersBtn" class="btn btn-outline btn-sm hidden" title="Manage Reviewers & Database Assignments">
+          <i class="fa-solid fa-users-gear" style="color: #10b981;"></i> Reviewers / RBAC
+        </button>
         
         <!-- Google Authentication User Box / Sign In Button -->
         <div id="googleSignInContainer"></div>
@@ -269,6 +272,89 @@
           <button class="btn btn-secondary" id="cancelPromptsModalBtn">Cancel</button>
           <button class="btn btn-primary" id="savePromptsModalBtn"><i class="fa-solid fa-floppy-disk"></i> Save All Prompts</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reviewers & Database Access Management Modal (Admin Only) -->
+  <div class="modal-overlay hidden" id="adminUsersModalOverlay" style="z-index: 10001;">
+    <div class="modal-card" style="max-width: 780px; width: 95%;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-users-gear" style="color: #10b981;"></i> Reviewer Access & Database Assignment</h3>
+        <button class="btn btn-icon" id="closeAdminUsersModalBtn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="padding-top: 0.5rem; max-height: 70vh; overflow-y: auto;">
+        <p class="modal-desc" style="margin-bottom: 1rem;">
+          Assign hired question reviewers to specific databases. Reviewers will <strong>only</strong> be able to view and review questions for their assigned database, with all parser, ingestion, and mock generation tools locked.
+        </p>
+
+        <!-- Add / Edit Reviewer Form -->
+        <div style="background: var(--bg-input); padding: 1.2rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1.5rem;">
+          <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.8rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-user-plus" style="color: #6366f1;"></i> <span id="adminUserFormTitle">Add or Assign Reviewer</span>
+          </h4>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.8rem; margin-bottom: 0.8rem;">
+            <div class="form-group" style="margin: 0;">
+              <label for="adminUserEmailInput" style="font-size: 0.8rem; font-weight: 600;">Google Email Address *</label>
+              <input type="email" id="adminUserEmailInput" placeholder="reviewer@gmail.com" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);">
+            </div>
+            <div class="form-group" style="margin: 0;">
+              <label for="adminUserNameInput" style="font-size: 0.8rem; font-weight: 600;">Reviewer Name</label>
+              <input type="text" id="adminUserNameInput" placeholder="e.g. John Doe" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);">
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.8rem; margin-bottom: 1rem;">
+            <div class="form-group" style="margin: 0;">
+              <label for="adminUserRoleSelect" style="font-size: 0.8rem; font-weight: 600;">Role</label>
+              <select id="adminUserRoleSelect" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);">
+                <option value="reviewer" selected>Question Reviewer (Restricted to assigned DB)</option>
+                <option value="admin">Administrator (Full Access to All Tools & DBs)</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin: 0;" id="assignedDbFormGroup">
+              <label for="adminUserDbSelect" style="font-size: 0.8rem; font-weight: 600;">Assigned Database *</label>
+              <select id="adminUserDbSelect" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);">
+                <option value="questify">Questify DB (General Aptitude)</option>
+                <option value="cat_project">CAT Project DB (CAT Quants & Mocks)</option>
+                <option value="all">All Databases (Admin / Super Reviewer)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+            <button class="btn btn-secondary btn-sm" id="resetAdminUserFormBtn" type="button">Reset</button>
+            <button class="btn btn-primary btn-sm" id="saveAdminUserBtn" type="button">
+              <i class="fa-solid fa-floppy-disk"></i> Save Assignment
+            </button>
+          </div>
+        </div>
+
+        <!-- Existing Users & Reviewers Table -->
+        <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.6rem; color: var(--text-primary); display: flex; align-items: center; justify-content: space-between;">
+          <span><i class="fa-solid fa-users" style="color: #10b981;"></i> Current Team & Reviewers</span>
+          <button class="btn btn-outline btn-xs" id="refreshAdminUsersListBtn" title="Refresh User List">
+            <i class="fa-solid fa-rotate-right"></i> Refresh
+          </button>
+        </h4>
+        <div class="table-container" style="overflow-x: auto; background: var(--bg-card); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left;">
+            <thead>
+              <tr style="background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);">
+                <th style="padding: 0.65rem 0.85rem;">User</th>
+                <th style="padding: 0.65rem 0.85rem;">Role</th>
+                <th style="padding: 0.65rem 0.85rem;">Assigned DB</th>
+                <th style="padding: 0.65rem 0.85rem; text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="adminUsersTableBody">
+              <tr><td colspan="4" style="text-align: center; padding: 1.5rem; color: var(--text-muted);"><i class="fa-solid fa-spinner spin-icon"></i> Loading team...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: flex-end;">
+        <button class="btn btn-secondary" id="closeAdminUsersFooterBtn">Close</button>
       </div>
     </div>
   </div>
@@ -564,6 +650,9 @@
               <option value="cat_project">CAT Project DB</option>
             </select>
           </div>
+          <span class="badge hidden" id="reviewerAssignedBadge" style="background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 700;">
+            <i class="fa-solid fa-shield-halved"></i> Assigned
+          </span>
           <span class="stepper-title" id="stepperQuestionIndex" style="font-weight: 800; font-size: 0.95rem; color: var(--text-primary);">
             Question 1 of 1
           </span>

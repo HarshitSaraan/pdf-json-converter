@@ -9,6 +9,33 @@ document.addEventListener('DOMContentLoaded', () => {
     ? 'http://127.0.0.1:8000' 
     : '';
 
+  // Transparent Session Token Authorization Interceptor
+  const originalFetch = window.fetch;
+  window.fetch = async function(resource, init = {}) {
+    try {
+      const sessionStr = localStorage.getItem('google_user_session');
+      if (sessionStr) {
+        const session = JSON.parse(sessionStr);
+        if (session && session.token) {
+          init = init || {};
+          init.headers = init.headers || {};
+          if (init.headers instanceof Headers) {
+            if (!init.headers.has('Authorization')) {
+              init.headers.set('Authorization', `Bearer ${session.token}`);
+            }
+          } else if (Array.isArray(init.headers)) {
+            init.headers.push(['Authorization', `Bearer ${session.token}`]);
+          } else {
+            if (!init.headers['Authorization'] && !init.headers['authorization']) {
+              init.headers['Authorization'] = `Bearer ${session.token}`;
+            }
+          }
+        }
+      }
+    } catch(e) {}
+    return originalFetch.call(this, resource, init);
+  };
+
   // DOM Elements - Navigation & Modes
   const modeParserBtn = document.getElementById('modeParserBtn');
   const modeReviewerBtn = document.getElementById('modeReviewerBtn');
@@ -106,14 +133,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const insertQuestionVar = document.getElementById('insertQuestionVar');
   const insertOptsVar = document.getElementById('insertOptsVar');
 
-  // Google Auth
+  // Google Auth & User RBAC
   const GOOGLE_CLIENT_ID = "1095943139935-bv47gtem4cjn9rihb2s74ccht9sq2tss.apps.googleusercontent.com";
-  const ALLOWED_EMAILS = [
-    "cnandini828@gmail.com",
-    "pratapsinghsusmit@gmail.com",
-    "thepreproute@gmail.com",
-    "harshitsaraan@gmail.com"
-  ];
   const googleSignInContainer = document.getElementById('googleSignInContainer');
   const userProfileBox = document.getElementById('userProfileBox');
   const userAvatarImg = document.getElementById('userAvatarImg');
@@ -126,6 +147,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const mainAppContainer = document.getElementById('mainAppContainer');
   const authLockScreen = document.getElementById('authLockScreen');
   const lockScreenGoogleBtnContainer = document.getElementById('lockScreenGoogleBtnContainer');
+
+  // Admin User & Reviewer Management Elements
+  const adminUsersBtn = document.getElementById('adminUsersBtn');
+  const adminUsersModalOverlay = document.getElementById('adminUsersModalOverlay');
+  const closeAdminUsersModalBtn = document.getElementById('closeAdminUsersModalBtn');
+  const closeAdminUsersFooterBtn = document.getElementById('closeAdminUsersFooterBtn');
+  const refreshAdminUsersListBtn = document.getElementById('refreshAdminUsersListBtn');
+  const adminUsersTableBody = document.getElementById('adminUsersTableBody');
+  const adminUserEmailInput = document.getElementById('adminUserEmailInput');
+  const adminUserNameInput = document.getElementById('adminUserNameInput');
+  const adminUserRoleSelect = document.getElementById('adminUserRoleSelect');
+  const adminUserDbSelect = document.getElementById('adminUserDbSelect');
+  const saveAdminUserBtn = document.getElementById('saveAdminUserBtn');
+  const resetAdminUserFormBtn = document.getElementById('resetAdminUserFormBtn');
+  const reviewerAssignedBadge = document.getElementById('reviewerAssignedBadge');
 
   // =========================================================================
   // TAXONOMY & SUBJECT CONFIG
@@ -199,19 +235,122 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (authLockScreen) authLockScreen.classList.add('hidden');
     if (mainAppContainer) mainAppContainer.classList.remove('hidden');
-    if (promptSettingsBtn) promptSettingsBtn.classList.remove('hidden');
-    if (aiSettingsBtn) aiSettingsBtn.classList.remove('hidden');
-    updateStatusBadge('Ready', 'success');
-    fetchPendingReviewCount();
 
-    // Check if user has chosen a role (Parser vs Reviewer)
-    const savedRole = localStorage.getItem('questify_user_role');
-    if (savedRole && (savedRole === 'parser' || savedRole === 'reviewer')) {
+    updateStatusBadge('Ready', 'success');
+
+    const isReviewer = (userData.role === 'reviewer');
+
+    if (isReviewer) {
+      // HIDE admin & parser features
+      if (promptSettingsBtn) promptSettingsBtn.classList.add('hidden');
+      if (aiSettingsBtn) aiSettingsBtn.classList.add('hidden');
+      if (adminUsersBtn) adminUsersBtn.classList.add('hidden');
+      if (modeParserBtn) modeParserBtn.classList.add('hidden');
+      if (modeAddSingleBtn) modeAddSingleBtn.classList.add('hidden');
+      if (modeMockBtn) modeMockBtn.classList.add('hidden');
+
+      // SHOW reviewer features
+      if (modeReviewerBtn) modeReviewerBtn.classList.remove('hidden');
+      if (modeUnreviewedBankBtn) modeUnreviewedBankBtn.classList.remove('hidden');
+      if (modeReviewedBankBtn) modeReviewedBankBtn.classList.remove('hidden');
+
+      // Lock top navbar role badge
+      if (switchRoleNavBtn) {
+        switchRoleNavBtn.style.pointerEvents = 'none';
+        switchRoleNavBtn.style.cursor = 'default';
+        switchRoleNavBtn.title = 'Reviewer Account (Assigned)';
+      }
+
+      // Restrict Database to assigned DB(s)
+      const allowed = (Array.isArray(userData.allowed_dbs) && userData.allowed_dbs.length > 0)
+        ? userData.allowed_dbs
+        : ['questify'];
+      const primaryDb = allowed[0] || 'questify';
+      const dbLabel = primaryDb === 'cat_project' ? 'CAT Project DB' : (primaryDb === 'questify' ? 'Questify DB' : primaryDb);
+
+      if (activeRoleNavLabel) {
+        activeRoleNavLabel.textContent = `Reviewer (${dbLabel})`;
+      }
+
+      currentDatabase = primaryDb;
+      localStorage.setItem('questify_current_db', currentDatabase);
+
+      // Lock Reviewer Studio DB Selector
+      if (reviewerDatabaseSelect) {
+        reviewerDatabaseSelect.innerHTML = '';
+        allowed.forEach(dbKey => {
+          const opt = document.createElement('option');
+          opt.value = dbKey;
+          opt.textContent = (dbKey === 'cat_project') ? 'CAT Project DB' : (dbKey === 'questify' ? 'Questify DB' : dbKey);
+          reviewerDatabaseSelect.appendChild(opt);
+        });
+        reviewerDatabaseSelect.value = currentDatabase;
+        reviewerDatabaseSelect.disabled = (allowed.length <= 1);
+      }
+
+      // Show assigned badge
+      if (reviewerAssignedBadge) {
+        reviewerAssignedBadge.classList.remove('hidden');
+        reviewerAssignedBadge.innerHTML = `<i class="fa-solid fa-shield-halved"></i> Assigned: ${escapeHtml(dbLabel)}`;
+      }
+
+      // Lock Question Bank DB Selector
+      if (qbDatabaseSelect) {
+        qbDatabaseSelect.innerHTML = '';
+        allowed.forEach(dbKey => {
+          const opt = document.createElement('option');
+          opt.value = dbKey;
+          opt.textContent = (dbKey === 'cat_project') ? 'CAT Project DB' : (dbKey === 'questify' ? 'Questify DB' : dbKey);
+          qbDatabaseSelect.appendChild(opt);
+        });
+        qbDatabaseSelect.value = currentDatabase;
+        qbDatabaseSelect.disabled = (allowed.length <= 1);
+      }
+
+      // Hide Guy A / Guy B workspace selection gateway and open Reviewer Studio
       hideRoleGateway();
-      switchMainMode(savedRole);
+      localStorage.setItem('questify_user_role', 'reviewer');
+      switchMainMode('reviewer');
+
     } else {
-      showRoleGateway();
+      // ADMIN ROLE: Full Access
+      if (promptSettingsBtn) promptSettingsBtn.classList.remove('hidden');
+      if (aiSettingsBtn) aiSettingsBtn.classList.remove('hidden');
+      if (adminUsersBtn) adminUsersBtn.classList.remove('hidden');
+      if (modeParserBtn) modeParserBtn.classList.remove('hidden');
+      if (modeReviewerBtn) modeReviewerBtn.classList.remove('hidden');
+      if (modeUnreviewedBankBtn) modeUnreviewedBankBtn.classList.remove('hidden');
+      if (modeReviewedBankBtn) modeReviewedBankBtn.classList.remove('hidden');
+      if (modeAddSingleBtn) modeAddSingleBtn.classList.remove('hidden');
+      if (modeMockBtn) modeMockBtn.classList.remove('hidden');
+
+      if (switchRoleNavBtn) {
+        switchRoleNavBtn.style.pointerEvents = 'auto';
+        switchRoleNavBtn.style.cursor = 'pointer';
+        switchRoleNavBtn.title = 'Switch Workspace Role';
+      }
+
+      if (reviewerAssignedBadge) {
+        reviewerAssignedBadge.classList.add('hidden');
+      }
+
+      if (reviewerDatabaseSelect) {
+        reviewerDatabaseSelect.disabled = false;
+      }
+      if (qbDatabaseSelect) {
+        qbDatabaseSelect.disabled = false;
+      }
+
+      const savedRole = localStorage.getItem('questify_user_role');
+      if (savedRole && (savedRole === 'parser' || savedRole === 'reviewer')) {
+        hideRoleGateway();
+        switchMainMode(savedRole);
+      } else {
+        showRoleGateway();
+      }
     }
+
+    fetchPendingReviewCount();
   }
 
   function clearUserProfile() {
@@ -222,13 +361,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (authLockScreen) authLockScreen.classList.remove('hidden');
     if (promptSettingsBtn) promptSettingsBtn.classList.add('hidden');
     if (aiSettingsBtn) aiSettingsBtn.classList.add('hidden');
+    if (adminUsersBtn) adminUsersBtn.classList.add('hidden');
     updateStatusBadge('Auth Required', 'danger');
     initGoogleAuth();
   }
 
   function showAccessDenied(email) {
     if (accessDeniedMsg) {
-      accessDeniedMsg.innerHTML = `Access Denied for <strong>${escapeHtml(email)}</strong>.<br>Your account is not on the authorized user list.`;
+      accessDeniedMsg.innerHTML = `Access Denied for <strong>${escapeHtml(email)}</strong>.<br>Your account is not on the authorized team list. Contact your administrator to be assigned a database.`;
     }
     if (accessDeniedModalOverlay) accessDeniedModalOverlay.classList.remove('hidden');
     if (window.google && google.accounts && google.accounts.id) {
@@ -257,10 +397,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const email = jwtData.email.trim().toLowerCase();
-    if (!ALLOWED_EMAILS.includes(email)) {
-      showAccessDenied(email);
-      return;
-    }
 
     try {
       const authRes = await fetch(`${API_BASE}/api/auth/verify-google`, {
@@ -274,20 +410,28 @@ document.addEventListener('DOMContentLoaded', () => {
           showAccessDenied(email);
           return;
         }
+
+        const sessionData = {
+          email: email,
+          name: authData.name || jwtData.name || email.split('@')[0],
+          picture: jwtData.picture || '',
+          credential: response.credential,
+          role: authData.role || 'reviewer',
+          allowed_dbs: authData.allowed_dbs || [],
+          token: authData.token
+        };
+
+        localStorage.setItem('google_user_session', JSON.stringify(sessionData));
+        renderUserProfile(sessionData);
+        return;
+      } else {
+        showAccessDenied(email);
+        return;
       }
     } catch(err) {
       console.warn("Backend auth verification warning:", err);
+      showAccessDenied(email);
     }
-
-    const sessionData = {
-      email: email,
-      name: jwtData.name || email.split('@')[0],
-      picture: jwtData.picture || '',
-      credential: response.credential
-    };
-
-    localStorage.setItem('google_user_session', JSON.stringify(sessionData));
-    renderUserProfile(sessionData);
   }
 
   function initGoogleAuth() {
@@ -295,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedSession) {
       try {
         const userData = JSON.parse(savedSession);
-        if (userData && userData.email && userData.credential !== 'local_dev_bypass' && ALLOWED_EMAILS.includes(userData.email.toLowerCase())) {
+        if (userData && userData.email && userData.token) {
           renderUserProfile(userData);
           return;
         } else {
@@ -317,33 +461,190 @@ document.addEventListener('DOMContentLoaded', () => {
           callback: handleGoogleCredentialResponse,
           auto_select: false
         });
-
-        if (googleSignInContainer) {
-          googleSignInContainer.classList.remove('hidden');
-          googleSignInContainer.innerHTML = '';
-          google.accounts.id.renderButton(googleSignInContainer, {
-            theme: "outline",
-            size: "medium",
-            type: "standard",
-            shape: "pill",
-            text: "signin_with"
-          });
-        }
-
-        if (lockScreenGoogleBtnContainer) {
-          lockScreenGoogleBtnContainer.innerHTML = '';
-          google.accounts.id.renderButton(lockScreenGoogleBtnContainer, {
-            theme: "filled_blue",
-            size: "large",
-            type: "standard",
-            shape: "rectangular",
-            text: "signin_with"
-          });
-        }
+        google.accounts.id.renderButton(
+          document.getElementById('googleSignInContainer'),
+          { theme: 'outline', size: 'medium', text: 'signin_with' }
+        );
+        google.accounts.id.renderButton(
+          document.getElementById('lockScreenGoogleBtnContainer'),
+          { theme: 'filled_blue', size: 'large', text: 'signin_with', shape: 'rectangular' }
+        );
       }
-    }, 200);
+    }, 100);
   }
 
+  // =========================================================================
+  // ADMIN: USER & REVIEWER MANAGEMENT (RBAC)
+  // =========================================================================
+  function openAdminUsersModal() {
+    if (adminUsersModalOverlay) adminUsersModalOverlay.classList.remove('hidden');
+    loadAdminUsersList();
+  }
+
+  function closeAdminUsersModal() {
+    if (adminUsersModalOverlay) adminUsersModalOverlay.classList.add('hidden');
+  }
+
+  async function loadAdminUsersList() {
+    if (!adminUsersTableBody) return;
+    adminUsersTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 1.5rem; color: var(--text-muted);"><i class="fa-solid fa-spinner spin-icon"></i> Loading team...</td></tr>`;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/users`);
+      if (!res.ok) {
+        adminUsersTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 1rem;">Failed to load users (status ${res.status}).</td></tr>`;
+        return;
+      }
+      const data = await res.json();
+      const users = data.users || [];
+      if (users.length === 0) {
+        adminUsersTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 1rem; color: var(--text-muted);">No users found.</td></tr>`;
+        return;
+      }
+
+      adminUsersTableBody.innerHTML = '';
+      users.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border-color)';
+
+        const roleBadge = u.role === 'admin'
+          ? `<span class="badge" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 12px;"><i class="fa-solid fa-crown"></i> Admin</span>`
+          : `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 12px;"><i class="fa-solid fa-clipboard-check"></i> Reviewer</span>`;
+
+        let dbBadge = '';
+        if (u.role === 'admin' || (u.allowed_dbs && u.allowed_dbs.includes('*'))) {
+          dbBadge = `<span style="color: var(--text-secondary); font-size: 0.8rem;"><i class="fa-solid fa-globe"></i> All Databases</span>`;
+        } else if (u.allowed_dbs && u.allowed_dbs.includes('cat_project')) {
+          dbBadge = `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 12px;"><i class="fa-solid fa-graduation-cap"></i> CAT Project DB</span>`;
+        } else if (u.allowed_dbs && u.allowed_dbs.includes('questify')) {
+          dbBadge = `<span class="badge" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 12px;"><i class="fa-solid fa-cube"></i> Questify DB</span>`;
+        } else {
+          dbBadge = `<span style="color: var(--text-muted); font-size: 0.8rem;">None</span>`;
+        }
+
+        const actionHtml = u.isDefault
+          ? `<span style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">Primary Admin</span>`
+          : `<div style="display: flex; justify-content: flex-end; gap: 0.3rem;">
+               <button class="btn btn-xs btn-outline edit-user-btn" data-email="${escapeHtml(u.email)}" data-name="${escapeHtml(u.name || '')}" data-role="${escapeHtml(u.role)}" data-db="${escapeHtml((u.allowed_dbs && u.allowed_dbs[0]) || 'questify')}" title="Edit User">
+                 <i class="fa-solid fa-pen"></i>
+               </button>
+               <button class="btn btn-xs btn-outline text-danger delete-user-btn" data-email="${escapeHtml(u.email)}" title="Remove Reviewer">
+                 <i class="fa-solid fa-trash-can"></i>
+               </button>
+             </div>`;
+
+        tr.innerHTML = `
+          <td style="padding: 0.65rem 0.85rem;">
+            <div style="font-weight: 600; color: var(--text-primary);">${escapeHtml(u.name || u.email.split('@')[0])}</div>
+            <div style="font-size: 0.78rem; color: var(--text-secondary); font-family: var(--font-code);">${escapeHtml(u.email)}</div>
+          </td>
+          <td style="padding: 0.65rem 0.85rem;">${roleBadge}</td>
+          <td style="padding: 0.65rem 0.85rem;">${dbBadge}</td>
+          <td style="padding: 0.65rem 0.85rem; text-align: right;">${actionHtml}</td>
+        `;
+        adminUsersTableBody.appendChild(tr);
+      });
+
+      // Bind edit buttons
+      adminUsersTableBody.querySelectorAll('.edit-user-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const email = btn.getAttribute('data-email');
+          const name = btn.getAttribute('data-name');
+          const role = btn.getAttribute('data-role');
+          const db = btn.getAttribute('data-db');
+          if (adminUserEmailInput) adminUserEmailInput.value = email;
+          if (adminUserNameInput) adminUserNameInput.value = name;
+          if (adminUserRoleSelect) adminUserRoleSelect.value = role;
+          if (adminUserDbSelect) adminUserDbSelect.value = db;
+          if (adminUserEmailInput) adminUserEmailInput.focus();
+        });
+      });
+
+      // Bind delete buttons
+      adminUsersTableBody.querySelectorAll('.delete-user-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const email = btn.getAttribute('data-email');
+          if (!confirm(`Are you sure you want to revoke access for ${email}?`)) return;
+          try {
+            const delRes = await fetch(`${API_BASE}/api/admin/users/${encodeURIComponent(email)}`, { method: 'DELETE' });
+            if (delRes.ok) {
+              loadAdminUsersList();
+            } else {
+              const err = await delRes.json();
+              alert(`Error: ${err.detail || 'Could not delete user'}`);
+            }
+          } catch(e) {
+            alert(`Network error: ${e.message}`);
+          }
+        });
+      });
+
+    } catch (e) {
+      adminUsersTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 1rem;">Failed to load users: ${e.message}</td></tr>`;
+    }
+  }
+
+  async function handleSaveAdminUser() {
+    const email = (adminUserEmailInput ? adminUserEmailInput.value : '').trim().toLowerCase();
+    const name = (adminUserNameInput ? adminUserNameInput.value : '').trim();
+    const role = (adminUserRoleSelect ? adminUserRoleSelect.value : 'reviewer');
+    const dbChoice = (adminUserDbSelect ? adminUserDbSelect.value : 'questify');
+
+    if (!email || !email.includes('@')) {
+      alert('Please enter a valid Google email address.');
+      return;
+    }
+
+    let allowedDbs = [];
+    if (role === 'admin' || dbChoice === 'all') {
+      allowedDbs = ['*'];
+    } else {
+      allowedDbs = [dbChoice];
+    }
+
+    saveAdminUserBtn.disabled = true;
+    saveAdminUserBtn.innerHTML = `<i class="fa-solid fa-spinner spin-icon"></i> Saving...`;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email,
+          name: name,
+          role: role,
+          allowed_dbs: allowedDbs
+        })
+      });
+
+      if (res.ok) {
+        if (adminUserEmailInput) adminUserEmailInput.value = '';
+        if (adminUserNameInput) adminUserNameInput.value = '';
+        if (adminUserRoleSelect) adminUserRoleSelect.value = 'reviewer';
+        if (adminUserDbSelect) adminUserDbSelect.value = 'questify';
+        loadAdminUsersList();
+      } else {
+        const err = await res.json();
+        alert(`Failed to save reviewer: ${err.detail || 'Unknown error'}`);
+      }
+    } catch (e) {
+      alert(`Network error saving reviewer: ${e.message}`);
+    } finally {
+      saveAdminUserBtn.disabled = false;
+      saveAdminUserBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Save Assignment`;
+    }
+  }
+
+  if (adminUsersBtn) adminUsersBtn.addEventListener('click', openAdminUsersModal);
+  if (closeAdminUsersModalBtn) closeAdminUsersModalBtn.addEventListener('click', closeAdminUsersModal);
+  if (closeAdminUsersFooterBtn) closeAdminUsersFooterBtn.addEventListener('click', closeAdminUsersModal);
+  if (refreshAdminUsersListBtn) refreshAdminUsersListBtn.addEventListener('click', loadAdminUsersList);
+  if (saveAdminUserBtn) saveAdminUserBtn.addEventListener('click', handleSaveAdminUser);
+  if (resetAdminUserFormBtn) resetAdminUserFormBtn.addEventListener('click', () => {
+    if (adminUserEmailInput) adminUserEmailInput.value = '';
+    if (adminUserNameInput) adminUserNameInput.value = '';
+    if (adminUserRoleSelect) adminUserRoleSelect.value = 'reviewer';
+    if (adminUserDbSelect) adminUserDbSelect.value = 'questify';
+  });
   // Load stored AI settings
   const savedGeminiKey = localStorage.getItem('gemini_api_key') || '';
   const savedChatgptKey = localStorage.getItem('chatgpt_api_key') || '';
@@ -612,18 +913,33 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function applyRolePermissions(role) {
-    if (role === 'parser') {
-      if (modeReviewerBtn) modeReviewerBtn.classList.add('hidden');
-      if (modeParserBtn) modeParserBtn.classList.remove('hidden');
-      if (modeReviewedBankBtn) modeReviewedBankBtn.classList.remove('hidden');
-      if (modeAddSingleBtn) modeAddSingleBtn.classList.remove('hidden');
-      if (modeMockBtn) modeMockBtn.classList.remove('hidden');
-    } else if (role === 'reviewer') {
+    const sessionStr = localStorage.getItem('google_user_session');
+    let isReviewerAccount = false;
+    if (sessionStr) {
+      try {
+        const sess = JSON.parse(sessionStr);
+        if (sess.role === 'reviewer') isReviewerAccount = true;
+      } catch(e) {}
+    }
+
+    if (isReviewerAccount || role === 'reviewer') {
       if (modeParserBtn) modeParserBtn.classList.add('hidden');
       if (modeAddSingleBtn) modeAddSingleBtn.classList.add('hidden');
+      if (modeMockBtn) modeMockBtn.classList.add('hidden');
+      if (promptSettingsBtn) promptSettingsBtn.classList.add('hidden');
+      if (aiSettingsBtn) aiSettingsBtn.classList.add('hidden');
+      if (adminUsersBtn) adminUsersBtn.classList.add('hidden');
       if (modeReviewerBtn) modeReviewerBtn.classList.remove('hidden');
+      if (modeUnreviewedBankBtn) modeUnreviewedBankBtn.classList.remove('hidden');
       if (modeReviewedBankBtn) modeReviewedBankBtn.classList.remove('hidden');
+    } else {
+      if (modeReviewerBtn) modeReviewerBtn.classList.remove('hidden');
+      if (modeParserBtn) modeParserBtn.classList.remove('hidden');
+      if (modeReviewedBankBtn) modeReviewedBankBtn.classList.remove('hidden');
+      if (modeUnreviewedBankBtn) modeUnreviewedBankBtn.classList.remove('hidden');
+      if (modeAddSingleBtn) modeAddSingleBtn.classList.remove('hidden');
       if (modeMockBtn) modeMockBtn.classList.remove('hidden');
+      if (adminUsersBtn) adminUsersBtn.classList.remove('hidden');
     }
   }
 
@@ -701,7 +1017,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // PRIMARY NAVIGATION (5 MODES) & FULL-SCREEN REVIEWER STUDIO
   // =========================================================================
   function switchMainMode(activeMode) {
-    const role = localStorage.getItem('questify_user_role') || (activeMode === 'reviewer' ? 'reviewer' : 'parser');
+    const sessionStr = localStorage.getItem('google_user_session');
+    let userRole = null;
+    let userAllowedDbs = [];
+    if (sessionStr) {
+      try {
+        const sess = JSON.parse(sessionStr);
+        userRole = sess.role;
+        userAllowedDbs = sess.allowed_dbs || [];
+      } catch(e) {}
+    }
+
+    const role = (userRole === 'reviewer') ? 'reviewer' : (localStorage.getItem('questify_user_role') || (activeMode === 'reviewer' ? 'reviewer' : 'parser'));
     applyRolePermissions(role);
 
     [modeParserBtn, modeReviewerBtn, modeUnreviewedBankBtn, modeReviewedBankBtn, modeAddSingleBtn, modeMockBtn].forEach(b => b && b.classList.remove('active'));
@@ -710,11 +1037,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Toggle Reviewer full-screen body class (hides footers and extra widgets)
     if (activeMode === 'reviewer') {
       document.body.classList.add('reviewer-mode');
-      if (activeRoleNavLabel) activeRoleNavLabel.textContent = 'Reviewer (Guy B)';
     } else {
       document.body.classList.remove('reviewer-mode');
+    }
+
+    if (userRole === 'reviewer') {
+      const dbTag = (userAllowedDbs && userAllowedDbs[0] === 'cat_project') ? 'CAT Project' : 'Questify';
+      if (activeRoleNavLabel) activeRoleNavLabel.textContent = `Reviewer (${dbTag})`;
+    } else {
       if (activeRoleNavLabel) {
-        if (activeMode === 'parser') activeRoleNavLabel.textContent = 'Parser (Guy A)';
+        if (activeMode === 'reviewer') activeRoleNavLabel.textContent = 'Reviewer (Guy B)';
+        else if (activeMode === 'parser') activeRoleNavLabel.textContent = 'Parser (Guy A)';
         else if (activeMode === 'unreviewed_bank') activeRoleNavLabel.textContent = 'Unreviewed Questions';
         else if (activeMode === 'reviewed_bank') activeRoleNavLabel.textContent = 'Reviewed Bank';
         else if (activeMode === 'single') activeRoleNavLabel.textContent = 'Add Question';
