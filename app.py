@@ -91,9 +91,21 @@ async def get_current_user_optional(request: Request) -> dict:
         token = request.query_params.get("token")
 
     if token:
-        user = verify_session_token(token)
-        if user:
-            return user
+        token_payload = verify_session_token(token)
+        if token_payload and "email" in token_payload:
+            email = token_payload["email"].strip().lower()
+            live_user = await get_user_permission(email)
+            if not live_user:
+                raise HTTPException(
+                    status_code=401,
+                    detail=f"Access revoked: Account '{email}' is no longer authorized. Please contact your administrator."
+                )
+            return {
+                "email": live_user["email"],
+                "role": live_user["role"],
+                "allowed_dbs": live_user.get("allowed_dbs", []),
+                "name": live_user.get("name", email.split("@")[0])
+            }
 
     # Automated test runner or local loopback test fallback
     client_host = request.client.host if request.client else None

@@ -9,14 +9,16 @@ document.addEventListener('DOMContentLoaded', () => {
     ? 'http://127.0.0.1:8000' 
     : '';
 
-  // Transparent Session Token Authorization Interceptor
+  // Transparent Session Token Authorization Interceptor & Live Revocation Handler
   const originalFetch = window.fetch;
   window.fetch = async function(resource, init = {}) {
+    let hadToken = false;
     try {
       const sessionStr = localStorage.getItem('google_user_session');
       if (sessionStr) {
         const session = JSON.parse(sessionStr);
         if (session && session.token) {
+          hadToken = true;
           init = init || {};
           init.headers = init.headers || {};
           if (init.headers instanceof Headers) {
@@ -33,7 +35,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     } catch(e) {}
-    return originalFetch.call(this, resource, init);
+
+    const response = await originalFetch.call(this, resource, init);
+
+    // If an authenticated request is rejected with 401 Unauthorized (e.g. admin revoked access)
+    if (hadToken && response.status === 401) {
+      try {
+        const clone = response.clone();
+        const errData = await clone.json().catch(() => ({}));
+        const detail = errData.detail || 'Your access has been revoked by an administrator.';
+        const sessionStr = localStorage.getItem('google_user_session');
+        const email = sessionStr ? (JSON.parse(sessionStr).email || '') : '';
+        if (typeof clearUserProfile === 'function') {
+          clearUserProfile();
+        }
+        if (typeof showAccessDenied === 'function') {
+          showAccessDenied(email, detail);
+        }
+      } catch(e) {}
+    }
+
+    return response;
   };
 
   // DOM Elements - Navigation & Modes
@@ -368,9 +390,13 @@ document.addEventListener('DOMContentLoaded', () => {
     initGoogleAuth();
   }
 
-  function showAccessDenied(email) {
+  function showAccessDenied(email, customMsg = null) {
     if (accessDeniedMsg) {
-      accessDeniedMsg.innerHTML = `Access Denied for <strong>${escapeHtml(email)}</strong>.<br>Your account is not on the authorized team list. Contact your administrator to be assigned a database.`;
+      if (customMsg) {
+        accessDeniedMsg.innerHTML = `<span style="color: #ef4444; font-weight: 700;">${escapeHtml(customMsg)}</span><br><br><span style="font-size: 0.85rem; color: var(--text-muted); font-family: var(--font-code);">${escapeHtml(email || '')}</span>`;
+      } else {
+        accessDeniedMsg.innerHTML = `Access Denied for <strong>${escapeHtml(email)}</strong>.<br>Your account is not on the authorized team list. Contact your administrator to be assigned a database.`;
+      }
     }
     if (accessDeniedModalOverlay) accessDeniedModalOverlay.classList.remove('hidden');
     if (window.google && google.accounts && google.accounts.id) {
@@ -379,6 +405,33 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mainAppContainer) mainAppContainer.classList.add('hidden');
     if (authLockScreen) authLockScreen.classList.remove('hidden');
   }
+
+  async function checkLiveSession() {
+    const sessionStr = localStorage.getItem('google_user_session');
+    if (!sessionStr) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/me`);
+      if (res.status === 401 || res.status === 403) {
+        const err = await res.json().catch(() => ({}));
+        const email = (JSON.parse(sessionStr)).email || '';
+        clearUserProfile();
+        showAccessDenied(email, err.detail || "Your access has been revoked by an administrator.");
+      } else if (res.ok) {
+        const me = await res.json();
+        const sess = JSON.parse(sessionStr);
+        if (sess.role !== me.role || JSON.stringify(sess.allowed_dbs) !== JSON.stringify(me.allowed_dbs)) {
+          sess.role = me.role;
+          sess.allowed_dbs = me.allowed_dbs;
+          localStorage.setItem('google_user_session', JSON.stringify(sess));
+          renderUserProfile(sess);
+        }
+      }
+    } catch(e) {}
+  }
+
+  // Active heartbeat check every 15 seconds & on window focus
+  setInterval(checkLiveSession, 15000);
+  window.addEventListener('focus', checkLiveSession);
 
   if (closeAccessDeniedBtn) {
     closeAccessDeniedBtn.addEventListener('click', () => {
