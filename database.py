@@ -59,7 +59,8 @@ async def list_available_databases():
     c = get_client()
     known_dbs = [
         {"id": "questify", "name": "Questify DB", "desc": "Default repository for general aptitude and exam mocks"},
-        {"id": "cat_project", "name": "CAT Project DB", "desc": "Dedicated repository for CAT Quantitative Aptitude & Exam Mocks"}
+        {"id": "cat_project", "name": "CAT Project DB", "desc": "Dedicated repository for CAT Quantitative Aptitude & Exam Mocks"},
+        {"id": "QA-01", "name": "QA-01 DB", "desc": "Dedicated repository for Quantitative Aptitude Practice & Review"}
     ]
     
     results = []

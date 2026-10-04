@@ -288,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ? userData.allowed_dbs
         : ['questify'];
       const primaryDb = allowed[0] || 'questify';
-      const dbLabel = primaryDb === 'cat_project' ? 'CAT Project DB' : (primaryDb === 'questify' ? 'Questify DB' : primaryDb);
+      const dbLabel = primaryDb === 'QA-01' ? 'QA-01 DB' : (primaryDb === 'cat_project' ? 'CAT Project DB' : (primaryDb === 'questify' ? 'Questify DB' : primaryDb));
 
       if (activeRoleNavLabel) {
         activeRoleNavLabel.textContent = `Reviewer (${dbLabel})`;
@@ -303,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
         allowed.forEach(dbKey => {
           const opt = document.createElement('option');
           opt.value = dbKey;
-          opt.textContent = (dbKey === 'cat_project') ? 'CAT Project DB' : (dbKey === 'questify' ? 'Questify DB' : dbKey);
+          opt.textContent = (dbKey === 'QA-01') ? 'QA-01 DB' : ((dbKey === 'cat_project') ? 'CAT Project DB' : (dbKey === 'questify' ? 'Questify DB' : dbKey));
           reviewerDatabaseSelect.appendChild(opt);
         });
         reviewerDatabaseSelect.value = currentDatabase;
@@ -322,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
         allowed.forEach(dbKey => {
           const opt = document.createElement('option');
           opt.value = dbKey;
-          opt.textContent = (dbKey === 'cat_project') ? 'CAT Project DB' : (dbKey === 'questify' ? 'Questify DB' : dbKey);
+          opt.textContent = (dbKey === 'QA-01') ? 'QA-01 DB' : ((dbKey === 'cat_project') ? 'CAT Project DB' : (dbKey === 'questify' ? 'Questify DB' : dbKey));
           qbDatabaseSelect.appendChild(opt);
         });
         qbDatabaseSelect.value = currentDatabase;
@@ -569,6 +569,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let dbBadge = '';
         if (u.role === 'admin' || (u.allowed_dbs && u.allowed_dbs.includes('*'))) {
           dbBadge = `<span style="color: var(--text-secondary); font-size: 0.8rem;"><i class="fa-solid fa-globe"></i> All Databases</span>`;
+        } else if (u.allowed_dbs && u.allowed_dbs.includes('QA-01')) {
+          dbBadge = `<span class="badge" style="background: rgba(14, 165, 233, 0.15); color: #0ea5e9; border: 1px solid rgba(14, 165, 233, 0.3); font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 12px;"><i class="fa-solid fa-calculator"></i> QA-01 DB</span>`;
         } else if (u.allowed_dbs && u.allowed_dbs.includes('cat_project')) {
           dbBadge = `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 12px;"><i class="fa-solid fa-graduation-cap"></i> CAT Project DB</span>`;
         } else if (u.allowed_dbs && u.allowed_dbs.includes('questify')) {
@@ -926,8 +928,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const closeDbSelectionModalBtn = document.getElementById('closeDbSelectionModalBtn');
   const dbCardQuestify = document.getElementById('dbCardQuestify');
   const dbCardCatProject = document.getElementById('dbCardCatProject');
+  const dbCardQa01 = document.getElementById('dbCardQa01');
   const modalDbCountQuestify = document.getElementById('modalDbCountQuestify');
   const modalDbCountCatProject = document.getElementById('modalDbCountCatProject');
+  const modalDbCountQa01 = document.getElementById('modalDbCountQa01');
 
   function openDbSelectionModal() {
     if (dbSelectionModalOverlay) {
@@ -957,6 +961,8 @@ document.addEventListener('DOMContentLoaded', () => {
             modalDbCountQuestify.textContent = `${d.unreviewedCount} in Queue`;
           } else if (d.id === 'cat_project' && modalDbCountCatProject) {
             modalDbCountCatProject.textContent = `${d.unreviewedCount} in Queue`;
+          } else if (d.id === 'QA-01' && modalDbCountQa01) {
+            modalDbCountQa01.textContent = `${d.unreviewedCount} in Queue`;
           }
         });
       }
@@ -977,6 +983,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (dbCardCatProject) {
     dbCardCatProject.addEventListener('click', () => selectReviewDatabase('cat_project'));
+  }
+  if (dbCardQa01) {
+    dbCardQa01.addEventListener('click', () => selectReviewDatabase('QA-01'));
   }
 
   function hideRoleGateway() {
@@ -1113,7 +1122,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (userRole === 'reviewer') {
-      const dbTag = (userAllowedDbs && userAllowedDbs[0] === 'cat_project') ? 'CAT Project' : 'Questify';
+      const primaryDb = userAllowedDbs && userAllowedDbs[0];
+      const dbTag = (primaryDb === 'QA-01') ? 'QA-01' : ((primaryDb === 'cat_project') ? 'CAT Project' : 'Questify');
       if (activeRoleNavLabel) activeRoleNavLabel.textContent = `Reviewer (${dbTag})`;
     } else {
       if (activeRoleNavLabel) {
@@ -1575,14 +1585,15 @@ document.addEventListener('DOMContentLoaded', () => {
       pushToReviewQueueBtn.disabled = true;
 
       try {
-        const res = await fetch(`${API_BASE}/api/unreviewed-questions/bulk`, {
+        const res = await fetch(`${API_BASE}/api/unreviewed-questions/bulk?db=${currentDatabase}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ questions: selectedQuestions })
         });
         const result = await res.json();
         if (res.ok) {
-          alert(`🎉 Success! ${result.count} questions have been transferred to Guy B's Review Queue in Questify DB.\nGuy A's task is complete!`);
+          const targetName = currentDatabase === 'QA-01' ? 'QA-01 DB' : (currentDatabase === 'cat_project' ? 'CAT Project DB' : 'Questify DB');
+          alert(`🎉 Success! ${result.count} questions have been transferred to Guy B's Review Queue in ${targetName}.\nGuy A's task is complete!`);
           questionsData = questionsData.filter(q => !q.isSelected);
           renderParsedQuestions();
           fetchPendingReviewCount();
@@ -1833,7 +1844,7 @@ document.addEventListener('DOMContentLoaded', () => {
           qbReviewedBadge.textContent = rev;
         }
         if (reviewerQueueCountBadge) {
-          const dbTag = currentDatabase === 'cat_project' ? 'CAT DB' : 'Questify DB';
+          const dbTag = currentDatabase === 'QA-01' ? 'QA-01 DB' : (currentDatabase === 'cat_project' ? 'CAT DB' : 'Questify DB');
           reviewerQueueCountBadge.textContent = `${cnt} Pending Review (${dbTag})`;
         }
         if (gatewayPendingBadge) {
@@ -1862,7 +1873,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentReviewIndex = index;
 
         if (reviewerQueueCountBadge) {
-          const dbTag = currentDatabase === 'cat_project' ? 'CAT DB' : 'Questify DB';
+          const dbTag = currentDatabase === 'QA-01' ? 'QA-01 DB' : (currentDatabase === 'cat_project' ? 'CAT DB' : 'Questify DB');
           reviewerQueueCountBadge.textContent = `${totalReviewQueueCount} Pending Review (${dbTag})`;
         }
         if (navPendingReviewBadge) {
@@ -2449,7 +2460,7 @@ document.addEventListener('DOMContentLoaded', () => {
       qbReviewedTabBtn.classList.toggle('active', tab === 'reviewed');
     }
 
-    const dbLabel = currentDatabase === 'cat_project' ? 'cat_project' : 'questify';
+    const dbLabel = currentDatabase === 'QA-01' ? 'QA-01' : (currentDatabase === 'cat_project' ? 'cat_project' : 'questify');
     if (qbHeaderTitle && qbHeaderDesc) {
       if (tab === 'unreviewed') {
         qbHeaderTitle.innerHTML = `<i class="fa-solid fa-clock-rotate-left" style="color: #f59e0b;"></i> Unreviewed Questions (Staging: ${dbLabel}) <span class="count-badge" id="reviewedBankTotalBadge">${unreviewedBankData.length} Questions</span>`;
@@ -2495,7 +2506,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ? `${API_BASE}/api/unreviewed-questions?db=${currentDatabase}` 
       : `${API_BASE}/api/reviewed-questions?db=${currentDatabase}`;
 
-    const dbLabel = currentDatabase === 'cat_project' ? 'CAT Project DB' : 'Questify DB';
+    const dbLabel = currentDatabase === 'QA-01' ? 'QA-01 DB' : (currentDatabase === 'cat_project' ? 'CAT Project DB' : 'Questify DB');
     reviewedBankList.innerHTML = `<div class="empty-state"><i class="fa-solid fa-spinner spin-icon"></i> Loading ${isUnrev ? 'Unreviewed Staging Questions' : 'Reviewed Question Bank'} from ${dbLabel}...</div>`;
 
     fetchBankStats();
@@ -2520,7 +2531,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!reviewedBankList) return;
     const isUnrev = (currentBankTab === 'unreviewed');
     const rawData = isUnrev ? unreviewedBankData : reviewedBankData;
-    const dbLabel = currentDatabase === 'cat_project' ? 'cat_project' : 'questify';
+    const dbLabel = currentDatabase === 'QA-01' ? 'QA-01' : (currentDatabase === 'cat_project' ? 'cat_project' : 'questify');
 
     if (rawData.length === 0) {
       reviewedBankList.innerHTML = `<div class="empty-state">No ${isUnrev ? 'unreviewed' : 'reviewed'} questions found in MongoDB <code>${dbLabel}.${isUnrev ? 'unreviewed_questions' : 'reviewed_questions'}</code>.</div>`;
