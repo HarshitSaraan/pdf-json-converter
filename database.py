@@ -71,7 +71,23 @@ async def list_available_databases():
             db_inst = c[db_id] if c is not None else None
             if db_inst is not None:
                 unreviewed_cnt = await db_inst.unreviewed_questions.count_documents({})
-                # Check both reviewed_questions and reviewed_question
+                if unreviewed_cnt == 0:
+                    try:
+                        col_names = await db_inst.list_collection_names()
+                        source_col = None
+                        if db_id in col_names and await db_inst[db_id].count_documents({}) > 0:
+                            source_col = db_id
+                        elif "Quantitative Aptitude" in col_names and await db_inst["Quantitative Aptitude"].count_documents({}) > 0:
+                            source_col = "Quantitative Aptitude"
+                        
+                        if source_col:
+                            docs = await db_inst[source_col].find({}).to_list(length=10000)
+                            if docs:
+                                await db_inst.unreviewed_questions.insert_many(docs)
+                                unreviewed_cnt = len(docs)
+                    except Exception as sync_err:
+                        print(f"Sync check note for {db_id}: {sync_err}")
+
                 reviewed_cnt = await db_inst.reviewed_questions.count_documents({})
                 results.append({
                     "id": db_id,
